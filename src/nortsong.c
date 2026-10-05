@@ -70,6 +70,16 @@ Uint32 getDelayTicks2(void)  // FKA NortSong.frameCount2
 	return MAX(0, delay);
 }
 
+Uint32 getFrameDeadline(void)
+{
+	return target;
+}
+
+Uint32 getFramePeriod(void)
+{
+	return (Uint32)(frameCountMax * delayPeriod);
+}
+
 void wait_delay(void)
 {
 	Sint32 delay = target - SDL_GetTicks();

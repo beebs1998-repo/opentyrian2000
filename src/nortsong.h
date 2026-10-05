@@ -39,6 +39,8 @@ void setDelay(int delay);
 void setDelay2(int delay);
 Uint32 getDelayTicks(void);
 Uint32 getDelayTicks2(void);
+Uint32 getFrameDeadline(void);
+Uint32 getFramePeriod(void);
 
 void wait_delay(void);
 void service_wait_delay(void);

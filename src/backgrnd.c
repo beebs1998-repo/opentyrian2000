@@ -23,6 +23,7 @@
 #include "opentyr.h"
 #include "varz.h"
 #include "video.h"
+#include "drawlist.h"
 
 #include <assert.h>
 
@@ -44,6 +45,8 @@ JE_byte     smoothie_data[9]; /* [1..9] */
 
 void JE_darkenBackground(JE_word neat)  /* wild detail level */
 {
+	drawlist_record_darken(VGAScreen, neat);
+
 	Uint8 *s = VGAScreen->pixels; /* screen pointer, 8-bit specific */
 	int x, y;
 	
@@ -62,6 +65,8 @@ void JE_darkenBackground(JE_word neat)  /* wild detail level */
 
 void blit_background_row(SDL_Surface *surface, int x, int y, Uint8 **map)
 {
+	drawlist_record_bg_row(surface, x, y, map, false);
+
 	assert(surface->format->BitsPerPixel == 8);
 	
 	Uint8 *pixels = (Uint8 *)surface->pixels + (y * surface->pitch) + x,
@@ -108,6 +113,8 @@ void blit_background_row(SDL_Surface *surface, int x, int y, Uint8 **map)
 
 void blit_background_row_blend(SDL_Surface *surface, int x, int y, Uint8 **map)
 {
+	drawlist_record_bg_row(surface, x, y, map, true);
+
 	assert(surface->format->BitsPerPixel == 8);
 	
 	Uint8 *pixels = (Uint8 *)surface->pixels + (y * surface->pitch) + x,
@@ -154,13 +161,16 @@ void blit_background_row_blend(SDL_Surface *surface, int x, int y, Uint8 **map)
 
 void draw_background_1(SDL_Surface *surface)
 {
+	drawlist_record_fill_full(surface);
+
 	SDL_FillRect(surface, NULL, 0);
 	
 	Uint8 **map = (Uint8 **)mapYPos + mapXbpPos - 12;
 	
 	for (int i = -1; i < 7; i++)
 	{
-		blit_background_row(surface, mapXPos, (i * 28) + backPos, map);
+				drawlist_set_context(DL_OBJ_BACKGROUND, 1, i + 1);
+	blit_background_row(surface, mapXPos, (i * 28) + backPos, map);
 		
 		map += 14;
 	}
@@ -180,6 +190,7 @@ void draw_background_2(SDL_Surface *surface)
 		
 		for (int i = -1; i < 7; i++)
 		{
+			drawlist_set_context(DL_OBJ_BACKGROUND, 2, i + 1);
 			blit_background_row(surface, x, (i * 28) + backPos2, map);
 			
 			map += 14;
@@ -211,7 +222,8 @@ void draw_background_2_blend(SDL_Surface *surface)
 	
 	for (int i = -1; i < 7; i++)
 	{
-		blit_background_row_blend(surface, mapX2Pos, (i * 28) + backPos2, map);
+				drawlist_set_context(DL_OBJ_BACKGROUND, 2, i + 1);
+	blit_background_row_blend(surface, mapX2Pos, (i * 28) + backPos2, map);
 		
 		map += 14;
 	}
@@ -248,7 +260,8 @@ void draw_background_3(SDL_Surface *surface)
 	
 	for (int i = -1; i < 7; i++)
 	{
-		blit_background_row(surface, mapX3Pos, (i * 28) + backPos3, map);
+				drawlist_set_context(DL_OBJ_BACKGROUND, 3, i + 1);
+	blit_background_row(surface, mapX3Pos, (i * 28) + backPos3, map);
 		
 		map += 15;
 	}
@@ -256,6 +269,8 @@ void draw_background_3(SDL_Surface *surface)
 
 void JE_filterScreen(JE_shortint col, JE_shortint int_)
 {
+	drawlist_record_filter_screen(VGAScreen, col, int_);
+
 	Uint8 *s = NULL; /* screen pointer, 8-bit specific */
 	int x, y;
 	unsigned int temp;
@@ -319,6 +334,8 @@ void JE_checkSmoothies(void)
 
 void lava_filter(SDL_Surface *dst, SDL_Surface *src)
 {
+	drawlist_record_filter(dst, src, DL_FILTER_LAVA);
+
 	assert(src->format->BitsPerPixel == 8 && dst->format->BitsPerPixel == 8);
 	
 	/* we don't need to check for over-reading the pixel surfaces since we only
@@ -367,6 +384,8 @@ void lava_filter(SDL_Surface *dst, SDL_Surface *src)
 
 void water_filter(SDL_Surface *dst, SDL_Surface *src)
 {
+	drawlist_record_filter(dst, src, DL_FILTER_WATER);
+
 	assert(src->format->BitsPerPixel == 8 && dst->format->BitsPerPixel == 8);
 	
 	Uint8 hue = smoothie_data[1] << 4;
@@ -415,6 +434,8 @@ void water_filter(SDL_Surface *dst, SDL_Surface *src)
 
 void iced_blur_filter(SDL_Surface *dst, SDL_Surface *src)
 {
+	drawlist_record_filter(dst, src, DL_FILTER_ICED);
+
 	assert(src->format->BitsPerPixel == 8 && dst->format->BitsPerPixel == 8);
 	
 	Uint8 *dst_pixel = dst->pixels;
@@ -441,6 +462,8 @@ void iced_blur_filter(SDL_Surface *dst, SDL_Surface *src)
 
 void blur_filter(SDL_Surface *dst, SDL_Surface *src)
 {
+	drawlist_record_filter(dst, src, DL_FILTER_BLUR);
+
 	assert(src->format->BitsPerPixel == 8 && dst->format->BitsPerPixel == 8);
 	
 	Uint8 *dst_pixel = dst->pixels;
@@ -490,6 +513,8 @@ void initialize_starfield(void)
 
 void update_and_draw_starfield(SDL_Surface* surface, int move_speed)
 {
+	drawlist_record_starfield(surface, move_speed, starfield_stars, sizeof starfield_stars);
+
 	Uint8* p = (Uint8*)surface->pixels;
 
 	for (int i = MAX_STARS-1; i >= 0; --i)
@@ -522,4 +547,159 @@ void update_and_draw_starfield(SDL_Surface* surface, int move_speed)
 			}
 		}
 	}
+}
+
+// Pixel-apply half of JE_darkenBackground: the whole in-place pass.
+// Replayed by the draw list so the replay reproduces the really darkened frame
+// without any gameplay side effect.
+void drawlist_apply_darken(SDL_Surface *surface, JE_word neat)
+{
+	Uint8 *s = surface->pixels; /* screen pointer, 8-bit specific */
+	int x, y;
+
+	s += 24;
+
+	for (y = 184; y; y--)
+	{
+		for (x = 264; x; x--)
+		{
+			*s = ((((*s & 0x0f) << 4) - (*s & 0x0f) + ((((x - neat - y) >> 2) + *(s-2) + (y == 184 ? 0 : *(s-(surface->pitch-1)))) & 0x0f)) >> 4) | (*s & 0xf0);
+			s++;
+		}
+		s += surface->pitch - 264;
+	}
+}
+
+// Pixel-apply half of JE_filterScreen: only the two in-place full-frame passes.
+// Replayed by the draw list so the replay does not advance levelBrightness/filterFade.
+void drawlist_apply_filter_screen(SDL_Surface *surface, JE_shortint col, JE_shortint int_)
+{
+	Uint8 *s = NULL; /* screen pointer, 8-bit specific */
+	int x, y;
+	unsigned int temp;
+
+	if (col != -99 && filtrationAvail)
+	{
+		s = surface->pixels;
+		s += 24;
+
+		col <<= 4;
+
+		for (y = 184; y; y--)
+		{
+			for (x = 264; x; x--)
+			{
+				*s = col | (*s & 0x0f);
+				s++;
+			}
+			s += surface->pitch - 264;
+		}
+	}
+
+	if (int_ != -99 && explosionTransparent)
+	{
+		s = surface->pixels;
+		s += 24;
+
+		for (y = 184; y; y--)
+		{
+			for (x = 264; x; x--)
+			{
+				temp = (*s & 0x0f) + int_;
+				*s = (*s & 0xf0) | (temp >= 0x1f ? 0 : (temp >= 0x0f ? 0x0f : temp));
+				s++;
+			}
+			s += surface->pitch - 264;
+		}
+	}
+}
+
+// Replays one recorded starfield step.  The caller captured the pre-step star
+// state; restoring it and re-running the (pure) update lands the live array on
+// exactly the post-step state the real call produced.
+void drawlist_replay_starfield(SDL_Surface *surface, int move_speed, const void *stars, size_t bytes)
+{
+	if (bytes != sizeof starfield_stars)
+		return;
+
+	memcpy(starfield_stars, stars, sizeof starfield_stars);
+	update_and_draw_starfield(surface, move_speed);
+}
+
+// Stage-3 interpolated starfield: draws each star partway (alpha_fx16, 16.16)
+// between the previous frame's position and this tick's advanced position,
+// without touching the live array.  At alpha = 1 this is byte-identical to the
+// draw half of update_and_draw_starfield().
+void drawlist_draw_starfield_interp(SDL_Surface *surface, int move_speed, const void *pre, size_t bytes, Uint32 alpha_fx16)
+{
+	if (bytes != sizeof starfield_stars)
+		return;
+
+	StarfieldStar stars[MAX_STARS];
+	memcpy(stars, pre, sizeof starfield_stars);
+
+	Uint8 *p = (Uint8 *)surface->pixels;
+
+	for (int i = MAX_STARS - 1; i >= 0; --i)
+	{
+		const StarfieldStar *star = &stars[i];
+		const Uint16 prev_pos = star->position;
+		const int step_rows = (star->speed + move_speed);
+		const int part_rows = (int)(((Sint64)step_rows * (Sint64)alpha_fx16) / 65536);
+
+		Uint16 pos = (Uint16)(prev_pos + part_rows * surface->pitch);
+
+		if (pos < prev_pos)
+			pos = (Uint16)(prev_pos + step_rows * surface->pitch);  // wrapped: snap
+
+		if (pos < 177 * surface->pitch)
+		{
+			if (p[pos] == 0)
+				p[pos] = star->color;
+
+			if (star->color - 4 >= STARFIELD_HUE)
+			{
+				if (p[pos + 1] == 0)
+					p[pos + 1] = star->color - 4;
+
+				if (pos > 0 && p[pos - 1] == 0)
+					p[pos - 1] = star->color - 4;
+
+				if (p[pos + surface->pitch] == 0)
+					p[pos + surface->pitch] = star->color - 4;
+
+				if (pos >= surface->pitch && p[pos - surface->pitch] == 0)
+					p[pos - surface->pitch] = star->color - 4;
+			}
+		}
+	}
+}
+int starfield_check_advance(const void *pre, size_t bytes, int move_speed, int pitch)
+{
+	if (bytes != sizeof starfield_stars)
+		return 0;
+
+	const StarfieldStar *before = pre;
+	int bad = 0;
+
+	for (int i = 0; i < MAX_STARS; ++i)
+	{
+		const int step = (before[i].speed + move_speed);
+		const Uint16 expected = (Uint16)(before[i].position + step * pitch);
+
+		if (starfield_stars[i].position != expected)
+			++bad;
+	}
+
+	return bad;
+}
+
+const void *starfield_state(void)
+{
+	return starfield_stars;
+}
+
+size_t starfield_state_size(void)
+{
+	return sizeof starfield_stars;
 }

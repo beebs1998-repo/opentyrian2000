@@ -45,7 +45,8 @@ enum
 
 #define ENEMY_SHOT_MAX  60 /* 60*/
 
-#define CURRENT_KEY_SPEED 1  /*Keyboard/Joystick movement rate*/
+#define CURRENT_KEY_SPEED 5  /*Keyboard/Joystick movement rate*/
+#define CURRENT_KEY_SPEED_DIAGONAL 4  /*Keyboard/Joystick movement rate when moving diagonally*/
 
 #define MAX_EXPLOSIONS           200
 #define MAX_REPEATING_EXPLOSIONS 20

@@ -33,6 +33,11 @@ Palette palettes[PALETTE_COUNT];
 int palette_count;
 
 static Palette palette;
+
+const SDL_Color *get_active_palette(void)
+{
+	return palette;
+}
 Uint32 rgb_palette[256], yuv_palette[256];
 
 Palette colors;

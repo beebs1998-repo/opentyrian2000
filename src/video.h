@@ -44,6 +44,7 @@ extern SDL_Surface *game_screen;
 extern SDL_Surface *VGAScreen2;
 
 extern SDL_Window *main_window;
+extern SDL_Renderer *main_window_renderer;
 extern SDL_PixelFormat *main_window_tex_format;
 
 void init_video(void);

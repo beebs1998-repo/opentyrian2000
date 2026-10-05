@@ -37,6 +37,8 @@
 #include "mtrand.h"
 #include "network.h"
 #include "nortsong.h"
+#include "drawlist.h"
+#include "interp.h"
 #include "nortvars.h"
 #include "opentyr.h"
 #include "palette.h"
@@ -3074,6 +3076,8 @@ void JE_inGameDisplays(void)
 	char stemp[21];
 	char tempstr[256];
 
+	drawlist_set_context(DL_OBJ_HUD, 0, 0);
+
 	for (uint i = 0; i < ((twoPlayerMode && !galagaMode) ? 2 : 1); ++i)
 	{
 		snprintf(tempstr, sizeof(tempstr), "%lu", player[i].cash);
@@ -3728,15 +3732,31 @@ redo:
 				/* keyboard input */
 				if ((inputDevice == 0 || inputDevice == 1) && !play_demo)
 				{
-					if (keysactive[keySettings[KEY_SETTING_UP]])
+				if (keysactive[keySettings[KEY_SETTING_UP]]) {
+					if (keysactive[keySettings[KEY_SETTING_LEFT]] || keysactive[keySettings[KEY_SETTING_RIGHT]])
+						this_player->y -= CURRENT_KEY_SPEED_DIAGONAL;
+					else
 						this_player->y -= CURRENT_KEY_SPEED;
-					if (keysactive[keySettings[KEY_SETTING_DOWN]])
+					}
+				else if (keysactive[keySettings[KEY_SETTING_DOWN]]) {
+					if (keysactive[keySettings[KEY_SETTING_LEFT]] || keysactive[keySettings[KEY_SETTING_RIGHT]])
+						this_player->y += CURRENT_KEY_SPEED_DIAGONAL;
+					else
 						this_player->y += CURRENT_KEY_SPEED;
+				}
 
-					if (keysactive[keySettings[KEY_SETTING_LEFT]])
+				if (keysactive[keySettings[KEY_SETTING_LEFT]]) {
+					if (keysactive[keySettings[KEY_SETTING_UP]] || keysactive[keySettings[KEY_SETTING_DOWN]])
+						this_player->x -= CURRENT_KEY_SPEED_DIAGONAL;
+					else
 						this_player->x -= CURRENT_KEY_SPEED;
-					if (keysactive[keySettings[KEY_SETTING_RIGHT]])
+				}
+				else if (keysactive[keySettings[KEY_SETTING_RIGHT]]) {
+					if (keysactive[keySettings[KEY_SETTING_UP]] || keysactive[keySettings[KEY_SETTING_DOWN]])
+						this_player->x += CURRENT_KEY_SPEED_DIAGONAL;
+					else
 						this_player->x += CURRENT_KEY_SPEED;
+				}
 
 					button[0] = button[0] || keysactive[keySettings[KEY_SETTING_FIRE]];
 					button[3] = button[3] || keysactive[keySettings[KEY_SETTING_CHANGE_FIRE]];
@@ -3788,8 +3808,8 @@ redo:
 					mouseYC = -mouseYC;
 				}
 
-				accelXC += this_player->x - *mouseX_;
-				accelYC += this_player->y - *mouseY_;
+				//accelXC += this_player->x - *mouseX_;
+				//accelYC += this_player->y - *mouseY_;
 
 				if (mouseXC > 30)
 					mouseXC = 30;
@@ -4149,6 +4169,8 @@ redo:
 
 		this_player->last_x_explosion_follow = this_player->x;
 		this_player->last_y_explosion_follow = this_player->y;
+
+		drawlist_set_context(DL_OBJ_PLAYER, playerNum_ - 1, 0);
 
 		if (shipGr_ == 0)
 		{
@@ -4642,6 +4664,8 @@ redo:
 				const int x = this_player->sidekick[i].x,
 				          y = this_player->sidekick[i].y;
 				const uint sprite = this_option->gr[this_player->sidekick[i].animation_frame] + this_player->sidekick[i].charge;
+
+			drawlist_set_context(DL_OBJ_SIDEKICK, (playerNum_ - 1) * 2 + (int)i, 0);
 
 				if (this_player->sidekick[i].style == 1 || this_player->sidekick[i].style == 2)
 					blit_sprite2x2(VGAScreen, x - 6, y, spriteSheet10, sprite);

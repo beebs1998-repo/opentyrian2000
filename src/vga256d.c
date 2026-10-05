@@ -23,6 +23,7 @@
 #include "opentyr.h"
 #include "palette.h"
 #include "video.h"
+#include "drawlist.h"
 
 #include "SDL.h"
 
@@ -54,6 +55,8 @@ void JE_pix3(SDL_Surface *surface, int x, int y, JE_byte c)
 
 void JE_rectangle(SDL_Surface *surface, int a, int b, int c, int d, int e) /* x1, y1, x2, y2, color */
 {
+	drawlist_record_rect_outline(surface, a, b, c, d, (Uint8)e);
+
 	if (a < surface->pitch && b < surface->h &&
 	    c < surface->pitch && d < surface->h)
 	{
@@ -86,6 +89,8 @@ void JE_rectangle(SDL_Surface *surface, int a, int b, int c, int d, int e) /* x1
 
 void fill_rectangle_xy(SDL_Surface *surface, int x, int y, int x2, int y2, Uint8 color)
 {
+	drawlist_record_fill_rect(surface, x, y, x2, y2, color);
+
 	SDL_Rect rect = { x, y, x2 - x + 1, y2 - y + 1 };
 	SDL_FillRect(surface, &rect, color);
 }
@@ -116,6 +121,7 @@ void JE_barShade(SDL_Surface *surface, int a, int b, int c, int d) /* x1, y1, x2
 
 void JE_barBright(SDL_Surface *surface, int a, int b, int c, int d) /* x1, y1, x2, y2 */
 {
+	drawlist_record_bar_bright(surface, a, b, c, d);
 	if (a < surface->pitch && b < surface->h &&
 	    c < surface->pitch && d < surface->h)
 	{

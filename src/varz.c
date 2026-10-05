@@ -35,6 +35,7 @@
 #include "sprite.h"
 #include "vga256d.h"
 #include "video.h"
+#include "drawlist.h"
 
 JE_integer tempDat, tempDat2, tempDat3;
 
@@ -1166,6 +1167,8 @@ void JE_doSP(JE_word x, JE_word y, JE_word num, JE_byte explowidth, JE_byte colo
 
 void JE_drawSP(void)
 {
+	drawlist_record_superpixels(VGAScreen, superpixels, sizeof superpixels);
+
 	for (int i = MAX_SUPERPIXELS; i--; )
 	{
 		if (superpixels[i].z)
@@ -1191,6 +1194,70 @@ void JE_drawSP(void)
 			}
 
 			superpixels[i].z--;
+		}
+	}
+}
+
+// Replays one recorded JE_drawSP() step.  The caller captured the pre-step
+// superpixel array; restoring it and re-running the (pure) update+draw against
+// the scratch surface lands the live array on the same post-step state.
+void drawlist_replay_superpixels(SDL_Surface *surface, const void *sp, size_t bytes)
+{
+	if (bytes != sizeof superpixels)
+		return;
+
+	memcpy(superpixels, sp, sizeof superpixels);
+
+	SDL_Surface *saved = VGAScreen;
+	VGAScreen = surface;
+	JE_drawSP();
+	VGAScreen = saved;
+}
+
+// Stage-3 interpolated superpixels: mirrors the draw half of JE_drawSP() but
+// places each pixel partway (alpha_fx16, 16.16) between the previous frame's
+// position and this tick's advanced position, without touching the live array.
+// At alpha = 1 this is byte-identical to JE_drawSP()'s drawing.
+void drawlist_draw_superpixels_interp(SDL_Surface *surface, const void *pre, size_t bytes, Uint32 alpha_fx16)
+{
+	if (bytes != sizeof superpixels)
+		return;
+
+	superpixel_type sp[MAX_SUPERPIXELS];
+	memcpy(sp, pre, sizeof superpixels);
+
+	for (int i = MAX_SUPERPIXELS; i--; )
+	{
+		if (sp[i].z)
+		{
+			const int prev_x = (int)sp[i].x, prev_y = (int)sp[i].y;
+			const int next_x = prev_x + sp[i].delta_x;
+			const int next_y = prev_y + sp[i].delta_y;
+			const int x = prev_x + (int)(((Sint64)(next_x - prev_x) * (Sint32)alpha_fx16) / 65536);
+			const int y = prev_y + (int)(((Sint64)(next_y - prev_y) * (Sint32)alpha_fx16) / 65536);
+
+			if ((unsigned)x < (unsigned)surface->w && (unsigned)y < (unsigned)surface->h)
+			{
+				Uint8 *s = (Uint8 *)surface->pixels + y * surface->pitch + x;
+
+				*s = (((*s & 0x0f) + sp[i].z) >> 1) + sp[i].color;
+				if (x > 0)
+				{
+					*(s - 1) = (((*(s - 1) & 0x0f) + (sp[i].z >> 1)) >> 1) + sp[i].color;
+				}
+				if ((unsigned)x < surface->w - 1u)
+				{
+					*(s + 1) = (((*(s + 1) & 0x0f) + (sp[i].z >> 1)) >> 1) + sp[i].color;
+				}
+				if (y > 0)
+				{
+					*(s - surface->pitch) = (((*(s - surface->pitch) & 0x0f) + (sp[i].z >> 1)) >> 1) + sp[i].color;
+				}
+				if ((unsigned)y < surface->h - 1u)
+				{
+					*(s + surface->pitch) = (((*(s + surface->pitch) & 0x0f) + (sp[i].z >> 1)) >> 1) + sp[i].color;
+				}
+			}
 		}
 	}
 }

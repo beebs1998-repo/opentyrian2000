@@ -22,6 +22,7 @@
 #include "opentyr.h"
 #include "palette.h"
 #include "video_scale.h"
+#include "drawlist.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -45,7 +46,7 @@ SDL_Surface *VGAScreen2;
 SDL_Surface *game_screen;
 
 SDL_Window *main_window = NULL;
-static SDL_Renderer *main_window_renderer = NULL;
+SDL_Renderer *main_window_renderer = NULL;
 SDL_PixelFormat *main_window_tex_format = NULL;
 static SDL_Texture *main_window_texture = NULL;
 
@@ -308,6 +309,7 @@ bool set_scaling_mode_by_name(const char *name)
 
 void JE_clr256(SDL_Surface *screen)
 {
+	drawlist_record_fill_full(screen);
 	SDL_FillRect(screen, NULL, 0);
 }
 

@@ -32,6 +32,8 @@ extern Uint32 rgb_palette[256], yuv_palette[256];
 
 extern Palette colors; // TODO: get rid of this
 
+const SDL_Color *get_active_palette(void); // palette currently presented
+
 void JE_loadPals(void);
 
 void set_palette(Palette colors, unsigned int first_color, unsigned int last_color);

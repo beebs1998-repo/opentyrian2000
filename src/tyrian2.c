@@ -37,6 +37,8 @@
 #include "network.h"
 #include "nortsong.h"
 #include "nortvars.h"
+#include "drawlist.h"
+#include "interp.h"
 #include "opentyr.h"
 #include "params.h"
 #include "pcxload.h"
@@ -74,80 +76,13 @@ JE_byte itemAvailMax[9]; /* [1..9] */
 
 void JE_starShowVGA(void)
 {
-	JE_byte *src;
-	Uint8 *s = NULL; /* screen pointer, 8-bit specific */
-
-	int x, y, lightx, lighty, lightdist;
-
 	if (!playerEndLevel && !skipStarShowVGA)
 	{
-
-		s = VGAScreenSeg->pixels;
-
-		src = game_screen->pixels;
-		src += 24;
-
-		if (smoothScroll != 0 /*&& thisPlayerNum != 2*/)
-		{
-			wait_delay();
-			setDelay(frameCountMax);
-		}
-
-		if (starShowVGASpecialCode == 1)
-		{
-			src += game_screen->pitch * 183;
-			for (y = 0; y < 184; y++)
-			{
-				memmove(s, src, 264);
-				s += VGAScreenSeg->pitch;
-				src -= game_screen->pitch;
-			}
-		}
-		else if (starShowVGASpecialCode == 2 && processorType >= 2)
-		{
-			lighty = 172 - player[0].y;
-			lightx = 281 - player[0].x;
-
-			for (y = 184; y; y--)
-			{
-				if (lighty > y)
-				{
-					for (x = 320 - 56; x; x--)
-					{
-						*s = (*src & 0xf0) | ((*src >> 2) & 0x03);
-						s++;
-						src++;
-					}
-				}
-				else
-				{
-					for (x = 320 - 56; x; x--)
-					{
-						lightdist = abs(lightx - x) + lighty;
-						if (lightdist < y)
-							*s = *src;
-						else if (lightdist - y <= 5)
-							*s = (*src & 0xf0) | (((*src & 0x0f) + (3 * (5 - (lightdist - y)))) / 4);
-						else
-							*s = (*src & 0xf0) | ((*src & 0x0f) >> 2);
-						s++;
-						src++;
-					}
-				}
-				s += 56 + VGAScreenSeg->pitch - 320;
-				src += 56 + VGAScreenSeg->pitch - 320;
-			}
-		}
-		else
-		{
-			for (y = 0; y < 184; y++)
-			{
-				memmove(s, src, 264);
-				s += VGAScreenSeg->pitch;
-				src += game_screen->pitch;
-			}
-		}
-		JE_showVGA();
+		// Presentation, including the decoupled high-refresh loop when smooth
+		// motion is active.  The playfield copy (with the vertical-flip and
+		// player-spotlight special codes) and JE_showVGA() live in
+		// interp_present_gameplay().
+		interp_present_gameplay();
 	}
 
 	quitRequested = false;
@@ -165,6 +100,10 @@ inline static void blit_enemy(SDL_Surface *surface, unsigned int i, signed int x
 	const int x = enemy[i].ex + x_offset + tempMapXOfs,
 	          y = enemy[i].ey + y_offset;
 	const unsigned int index = enemy[i].egr[enemy[i].enemycycle - 1] + sprite_offset;
+
+	// A pickup (armour 0 and a non-zero value) is still an enemy for the
+	// interpolation key but is tagged as an item so the lighting pass lights it.
+	drawlist_set_context(enemy[i].scoreitem ? DL_OBJ_ITEM : DL_OBJ_ENEMY, i, 0);
 
 	if (enemy[i].filter != 0)
 		blit_sprite2_filter(surface, x, y, *enemy[i].sprite2s, index, enemy[i].filter);
@@ -463,10 +402,10 @@ enemy_still_exists:
 
 								enemyShot[b].sx = tempX + weapons[temp3].bx[tempPos] + tempMapXOfs;
 								enemyShot[b].sy = tempY + weapons[temp3].by[tempPos];
-								enemyShot[b].sdmg = weapons[temp3].attack[tempPos];
-								enemyShot[b].tx = weapons[temp3].tx;
-								enemyShot[b].ty = weapons[temp3].ty;
-								enemyShot[b].duration = weapons[temp3].del[tempPos];
+							enemyShot[b].sdmg = weapons[temp3].attack[tempPos];
+							enemyShot[b].tx = weapons[temp3].tx;
+							enemyShot[b].ty = weapons[temp3].ty;
+							enemyShot[b].duration = weapons[temp3].del[tempPos];
 								enemyShot[b].animate = 0;
 								enemyShot[b].animax = weapons[temp3].weapani;
 
@@ -729,6 +668,10 @@ start_level_first:
 
 	doNotSaveBackup = false;
 	JE_loadMap();
+
+	// A new level must not interpolate against, or blend filters with, the
+	// previous level's recorded frame.  Draw-list-only; no gameplay effect.
+	drawlist_level_reset();
 
 	if (mainLevel == 0)  // if quit itemscreen
 		return;          // back to titlescreen
@@ -1256,6 +1199,11 @@ level_loop:
 
 	/* use game_screen for all the generic drawing functions */
 	VGAScreen = game_screen;
+
+	// The smooth presentation loop needs the current and previous tick's draw
+	// lists.  This only records; with smooth motion off it is a no-op.
+	drawlist_set_smooth_enabled(interp_active());
+	drawlist_frame_begin();
 
 	/*---------------------------EVENTS-------------------------*/
 	while (eventRec[eventLoc-1].eventtime <= curLoc && eventLoc <= maxEvent)
@@ -1856,7 +1804,9 @@ draw_player_shot_loop_end:
 								enemyShot[z].animate = 0;
 						}
 
-						if (enemyShot[z].sgr >= 500)
+						drawlist_set_context(DL_OBJ_ENEMY_SHOT, z, 0);
+
+					if (enemyShot[z].sgr >= 500)
 							blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet12, enemyShot[z].sgr + enemyShot[z].animate - 500);
 						else
 							blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet8, enemyShot[z].sgr + enemyShot[z].animate);
@@ -1959,6 +1909,8 @@ draw_player_shot_loop_end:
 			}
 			else
 			{
+				drawlist_set_context(DL_OBJ_EXPLOSION, j, 0);
+
 				if (explosionTransparent)
 					blit_sprite2_blend(VGAScreen, explosions[j].x, explosions[j].y, explosionSpriteSheet, explosions[j].sprite + 1);
 				else
@@ -1968,6 +1920,8 @@ draw_player_shot_loop_end:
 			}
 		}
 	}
+
+	drawlist_set_context(DL_OBJ_NONE, 0, 0);
 
 	if (!portConfigChange)
 		portConfigDone = true;
@@ -2333,6 +2287,8 @@ draw_player_shot_loop_end:
 	draw_boss_bar();
 
 	JE_inGameDisplays();
+
+	drawlist_frame_end();
 
 	VGAScreen = VGAScreenSeg; /* side-effect of game_screen */
 

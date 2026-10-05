@@ -22,6 +22,7 @@
 #include "sprite.h"
 #include "video.h"
 #include "varz.h"
+#include "drawlist.h"
 
 // I'm pretty sure the last extra entry is never used.
 PlayerShotDataType playerShotData[MAX_PWEAPON + 1]; /* [1..MaxPWeapon+1] */
@@ -38,6 +39,8 @@ void simulate_player_shots(void)
 			if (z != MAX_PWEAPON - 1)
 			{
 				PlayerShotDataType* shot = &playerShotData[z];
+
+				drawlist_set_context(DL_OBJ_PLAYER_SHOT, z, 0);
 
 				shot->shotXM += shot->shotXC;
 
@@ -167,6 +170,8 @@ bool player_shot_move_and_draw(
 		JE_word* out_special_radiusw, JE_word* out_special_radiush)
 {
 	PlayerShotDataType* shot = &playerShotData[shot_id];
+
+	drawlist_set_context(DL_OBJ_PLAYER_SHOT, shot_id, 0);
 
 	shotAvail[shot_id]--;
 	if (shot_id != MAX_PWEAPON - 1)
