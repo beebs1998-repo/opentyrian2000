@@ -1,3 +1,21 @@
+What changed on this repo
+================================================================================
+## Add 60Hz interpolation
+The game will run at 60 fps on display presentation, but the internal framerate 
+changed from 35 fps to 30 fps. So the game difficulty (Game Speed) is around 
+Slow and Normal Game Speed.
+
+## Removed player inertia
+The ship player now will move and stop like normal shmups.
+
+## Adjusted keyboard speed
+It is using value 5. The same as ref repo :
+  https://github.com/Yakkers17/opentyrianlinearmovement
+
+## Zinglon missing frame effect fix
+This occured probably from 60Hz modification, fixed.
+
+
 OpenTyrian2000
 ================================================================================
 
