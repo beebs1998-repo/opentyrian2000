@@ -15,6 +15,11 @@ It is using value 5. The same as ref repo :
 ## Zinglon missing frame effect fix
 This occured probably from 60Hz modification, fixed.
 
+Known bugs
+================================================================================
+- Blank on playfield. Press ESC to bring up menu should fixed it, otherwise 
+restart the game.
+- Blank on options menu, restart the game.
 
 OpenTyrian2000
 ================================================================================
