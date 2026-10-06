@@ -260,6 +260,10 @@ extern Uint8 demo_keys;
 extern Uint16 demo_keys_wait;
 
 extern JE_byte soundQueue[8];
+
+extern bool small_hitbox_enabled;
+void applySmallHitbox(void);
+
 extern JE_boolean enemyContinualDamage;
 extern JE_boolean enemiesActive;
 extern JE_boolean forceEvents;

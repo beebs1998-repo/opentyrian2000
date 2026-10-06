@@ -213,6 +213,7 @@ bool load_opentyrian_config(void)
 	// defaults
 	fullscreen_display = -1;
 	set_scaler_by_name("Scale2x");
+	small_hitbox_enabled = false;
 	memcpy(keySettings, defaultKeySettings, sizeof(keySettings));
 	memcpy(mouseSettings, defaultMouseSettings, sizeof(mouseSettings));
 	
@@ -243,6 +244,16 @@ bool load_opentyrian_config(void)
 		const char *scaling_mode;
 		if (config_get_string_option(section, "scaling_mode", &scaling_mode))
 			set_scaling_mode_by_name(scaling_mode);
+	}
+
+	section = config_find_section(config, "gameplay", NULL);
+	if (section != NULL)
+	{
+		const char *small_hitbox;
+		if (config_get_string_option(section, "small_hitbox", &small_hitbox))
+		{
+			small_hitbox_enabled = (strcmp(small_hitbox, "on") == 0 || strcmp(small_hitbox, "ON") == 0 || strcmp(small_hitbox, "On") == 0);
+		}
 	}
 
 	section = config_find_section(config, "keyboard", NULL);
@@ -300,6 +311,12 @@ bool save_opentyrian_config(void)
 	config_set_string_option(section, "scaler", scalers[scaler].name);
 	
 	config_set_string_option(section, "scaling_mode", scaling_mode_names[scaling_mode]);
+
+	section = config_find_or_add_section(config, "gameplay", NULL);
+	if (section == NULL)
+		exit(EXIT_FAILURE);  // out of memory
+
+	config_set_string_option(section, "small_hitbox", small_hitbox_enabled ? "on" : "off");
 
 	section = config_find_or_add_section(config, "keyboard", NULL);
 	if (section == NULL)

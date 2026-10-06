@@ -97,6 +97,18 @@ static const char *getScalingModePickerItem(size_t i, char *buffer, size_t buffe
 	return scaling_mode_names[i];
 }
 
+static size_t getSmallHitboxPickerItemsCount(void)
+{
+	return 2;
+}
+
+static const char *getSmallHitboxPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+
+	return i == 0 ? "OFF" : "ON";
+}
+
 void setupMenu(void)
 {
 	typedef enum
@@ -112,6 +124,8 @@ void setupMenu(void)
 		MENU_ITEM_SCALING_MODE,
 		MENU_ITEM_MUSIC_VOLUME,
 		MENU_ITEM_SOUND_VOLUME,
+		MENU_ITEM_GAMEPLAY,
+		MENU_ITEM_SMALL_HITBOX,
 	} MenuItemId;
 
 	typedef enum
@@ -120,6 +134,7 @@ void setupMenu(void)
 		MENU_SETUP,
 		MENU_GRAPHICS,
 		MENU_SOUND,
+		MENU_GAMEPLAY,
 	} MenuId;
 
 	typedef struct
@@ -143,6 +158,7 @@ void setupMenu(void)
 			.items = {
 				{ MENU_ITEM_GRAPHICS, "Graphics...", "Change the graphics settings." },
 				{ MENU_ITEM_SOUND, "Sound...", "Change the sound settings." },
+				{ MENU_ITEM_GAMEPLAY, "Gameplay...", "Change the gameplay settings." },
 				{ MENU_ITEM_JUKEBOX, "Jukebox", "Listen to the music of Tyrian." },
 				// { MENU_ITEM_DESTRUCT, "Destruct", "Play a bonus mini-game." },
 				{ MENU_ITEM_DONE, "Done", "Return to the main menu." },
@@ -164,6 +180,14 @@ void setupMenu(void)
 			.items = {
 				{ MENU_ITEM_MUSIC_VOLUME, "Music Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_SOUND_VOLUME, "Sound Volume", "Change volume with the left/right arrow keys." },
+				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
+				{ -1 }
+			},
+		},
+		[MENU_GAMEPLAY] = {
+			.header = "Gameplay",
+			.items = {
+				{ MENU_ITEM_SMALL_HITBOX, "Small Hitbox:", "Make the player ship hitbox much smaller (CAVE-style).", getSmallHitboxPickerItemsCount, getSmallHitboxPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -259,6 +283,10 @@ void setupMenu(void)
 
 			case MENU_ITEM_SCALING_MODE:
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, scaling_mode_names[scaling_mode], normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				break;
+
+			case MENU_ITEM_SMALL_HITBOX:
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, small_hitbox_enabled ? "ON" : "OFF", normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
 				break;
 
 			case MENU_ITEM_MUSIC_VOLUME:
@@ -376,6 +404,7 @@ void setupMenu(void)
 									case MENU_ITEM_DISPLAY:
 									case MENU_ITEM_SCALER:
 									case MENU_ITEM_SCALING_MODE:
+									case MENU_ITEM_SMALL_HITBOX:
 									{
 										action = true;
 										break;
@@ -538,6 +567,15 @@ void setupMenu(void)
 					selectedMenuItemIndexes[currentMenu] = 0;
 					break;
 				}
+				case MENU_ITEM_GAMEPLAY:
+				{
+					JE_playSampleNum(S_SELECT);
+
+					menuParents[MENU_GAMEPLAY] = currentMenu;
+					currentMenu = MENU_GAMEPLAY;
+					selectedMenuItemIndexes[currentMenu] = 0;
+					break;
+				}
 				case MENU_ITEM_JUKEBOX:
 				{
 					JE_playSampleNum(S_SELECT);
@@ -582,6 +620,14 @@ void setupMenu(void)
 
 					currentPicker = selectedMenuItemId;
 					pickerSelectedIndex = scaling_mode;
+					break;
+				}
+				case MENU_ITEM_SMALL_HITBOX:
+				{
+					JE_playSampleNum(S_CLICK);
+
+					currentPicker = selectedMenuItemId;
+					pickerSelectedIndex = small_hitbox_enabled ? 1 : 0;
 					break;
 				}
 				case MENU_ITEM_MUSIC_VOLUME:
@@ -733,6 +779,12 @@ void setupMenu(void)
 				case MENU_ITEM_SCALING_MODE:
 				{
 					scaling_mode = pickerSelectedIndex;
+					break;
+				}
+				case MENU_ITEM_SMALL_HITBOX:
+				{
+					small_hitbox_enabled = (pickerSelectedIndex == 1);
+					applySmallHitbox();
 					break;
 				}
 				default:

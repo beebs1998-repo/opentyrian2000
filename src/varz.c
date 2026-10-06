@@ -197,6 +197,8 @@ JE_word galagaShotFreq;
 JE_longint galagaLife;
 
 JE_boolean debug = false; /*Debug Mode*/
+
+bool small_hitbox_enabled = false;
 Uint32 debugTime, lastDebugTime;
 JE_longint debugHistCount;
 JE_real debugHist;
@@ -370,7 +372,40 @@ void JE_getShipInfo(void)
 		uint temp = ((i == 0 && extraShip) ||
 		             (i == 1 && extraShip2)) ? 2 : ships[player[i].items.ship].ani;
 
-		if (temp == 0)
+		if (small_hitbox_enabled)
+		{
+			player[i].shot_hit_area_x = 6;
+			player[i].shot_hit_area_y = 6;
+		}
+		else if (temp == 0)
+		{
+			player[i].shot_hit_area_x = 12;
+			player[i].shot_hit_area_y = 10;
+		}
+		else
+		{
+			player[i].shot_hit_area_x = 11;
+			player[i].shot_hit_area_y = 14;
+		}
+	}
+}
+
+void applySmallHitbox(void)
+{
+	JE_boolean extraShip = player[0].items.ship > 90;
+	JE_boolean extraShip2 = player[1].items.ship > 90;
+
+	for (uint i = 0; i < COUNTOF(player); ++i)
+	{
+		uint temp = ((i == 0 && extraShip) ||
+		             (i == 1 && extraShip2)) ? 2 : ships[player[i].items.ship].ani;
+
+		if (small_hitbox_enabled)
+		{
+			player[i].shot_hit_area_x = 6;
+			player[i].shot_hit_area_y = 6;
+		}
+		else if (temp == 0)
 		{
 			player[i].shot_hit_area_x = 12;
 			player[i].shot_hit_area_y = 10;

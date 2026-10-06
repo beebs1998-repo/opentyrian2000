@@ -4763,7 +4763,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 		{
 			int enemy_screen_x = enemy[z].ex + enemy[z].mapoffset;
 
-			if (abs(this_player->x - enemy_screen_x) < 12 && abs(this_player->y - enemy[z].ey) < 14)
+			if (abs(this_player->x - enemy_screen_x) < (small_hitbox_enabled ? 6 : 12) && abs(this_player->y - enemy[z].ey) < (small_hitbox_enabled ? 14 : 14))
 			{   /*Collide*/
 				int evalue = enemy[z].evalue;
 				if (evalue > 29999)
