@@ -906,8 +906,11 @@ void JE_loadConfiguration(void)
 		fxVolume = 255;
 	
 	set_volume(tyrMusicVolume, fxVolume);
+	/* Reverb only records the flag, and reverb_init() picks it up, so it can be
+	   applied here.  Stereo cannot: stereo_init() resets the mode, so applying
+	   the config value before the audio device exists would be discarded.  It is
+	   applied after init_audio() in main() instead. */
 	applyReverb();
-	applyStereo();
 	
 	fi = dir_fopen_warn(get_user_directory(), "tyrian.sav", "rb");
 	if (fi)

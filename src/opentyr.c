@@ -1049,6 +1049,11 @@ int main(int argc, char *argv[])
 
 		init_audio();
 
+		/* stereo_init() resets the mode, so the Stereo/Surround setting read
+		   from the config has to be applied now that the effect exists.  It is
+		   a no-op if audio init failed. */
+		applyStereo();
+
 		load_music();
 
 		loadSndFile(xmas);

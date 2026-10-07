@@ -1,6 +1,7 @@
 # Changelog
 
 ## Audio
+- Fixed Stereo and Surround being ignored at startup when set in `opentyrian.cfg`. `applyStereo()` ran from `JE_loadConfiguration()`, which is before `init_audio()`, so the mode request was dropped: `stereo_set_mode()` ignores requests while uninitialized and `stereo_init()` then resets the mode to off. The effect only took effect once the Setup menu was opened. `applyStereo()` now runs immediately after `init_audio()` in `opentyr.c`. Stereo Width was unaffected, because `stereo_set_width()` records the desired width even before init.
 - Added an optional reverb/echo effect over the final mixed audio stream (music and sound effects together), toggleable at Setup - Sound - Reverb (ON/OFF). Off by default, so existing audio is unchanged until it is switched on.
   - Added `src/reverb.c`/`src/reverb.h` as a self-contained mono Schroeder reverberator (4 parallel feedback comb filters with one-pole lowpass damping into 2 series allpass filters, DC-normalized). Delay lengths are scaled to the sample rate that SDL actually negotiates.
   - `loudness.c` calls `reverb_init`/`reverb_process`/`reverb_deinit` around the existing mixer; the dry path is untouched, so no latency is added, and the reverb network always runs with a ~30 ms wet-gain ramp so toggling never clicks.
