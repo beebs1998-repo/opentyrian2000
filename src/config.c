@@ -20,6 +20,7 @@
 
 #include "episodes.h"
 #include "file.h"
+#include "interp.h"
 #include "joystick.h"
 #include "loudness.h"
 #include "mtrand.h"
@@ -213,6 +214,7 @@ bool load_opentyrian_config(void)
 	// defaults
 	fullscreen_display = -1;
 	set_scaler_by_name("Scale2x");
+	interp_smooth_motion = true;
 	small_hitbox_enabled = false;
 	reverb_enabled = false;
 	stereo_enabled = false;
@@ -248,6 +250,8 @@ bool load_opentyrian_config(void)
 		const char *scaling_mode;
 		if (config_get_string_option(section, "scaling_mode", &scaling_mode))
 			set_scaling_mode_by_name(scaling_mode);
+
+		config_get_bool_option(section, "smooth_motion", &interp_smooth_motion);
 	}
 
 	section = config_find_section(config, "gameplay", NULL);
@@ -340,6 +344,8 @@ bool save_opentyrian_config(void)
 	config_set_string_option(section, "scaler", scalers[scaler].name);
 	
 	config_set_string_option(section, "scaling_mode", scaling_mode_names[scaling_mode]);
+
+	config_set_bool_option(section, "smooth_motion", interp_smooth_motion, OFF_ON);
 
 	section = config_find_or_add_section(config, "gameplay", NULL);
 	if (section == NULL)
@@ -589,7 +595,16 @@ void JE_initProcessorType(void)
 		case 2: /* 486 - Default */
 			break;
 		case 3: /* High Detail */
-			smoothScroll = false;
+			// Clouds blend 50/50 with what is behind them, as on Pentium, so
+			// enemies under a cloud stay visible.  `wild` is read only by the
+			// three draw_background_2{,_blend} call sites in tyrian2.c, so this
+			// cannot affect anything else.
+			//
+			// Unlike the original this level also keeps smoothScroll on, so the
+			// decoupled 60 Hz presentation stays active (interp_active() gates on
+			// it) and the tick is still paced rather than running free.
+			wild = true;
+			smoothScroll = true;
 			break;
 		case 4: /* Pentium */
 			wild = true;

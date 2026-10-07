@@ -19,6 +19,7 @@
 #include "params.h"
 
 #include "arg_parse.h"
+#include "drawlist.h"
 #include "file.h"
 #include "joystick.h"
 #include "loudness.h"
@@ -31,6 +32,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 JE_boolean richMode = false, constantPlay = false, constantDie = false;
@@ -57,6 +59,9 @@ void JE_paramCheck(int argc, char *argv[])
 		{ 257, 0,   "net-player-number", true }, //       be a menu for entering these in the future
 		{ 'p', 'p', "net-port",          true },
 		{ 'd', 'd', "net-delay",         true },
+
+		{ 258, 0,   "regress-replay-check",   false },
+		{ 259, 0,   "regress-interp-check",   false },
 		
 		{ 'X', 'X', "xmas",              false },
 		{ 'c', 'c', "constant",          false },
@@ -68,7 +73,13 @@ void JE_paramCheck(int argc, char *argv[])
 	};
 	
 	Option option;
-	
+
+	// The two regress checks both drive drawlist_frame_end() but through
+	// different arms, and only one can be meaningful per run.  First one on the
+	// command line wins.
+	bool replay_check_requested = false;
+	bool interp_check_requested = false;
+
 	for (; ; )
 	{
 		option = parse_args(argc, (const char **)argv, options);
@@ -97,8 +108,13 @@ void JE_paramCheck(int argc, char *argv[])
 			       "  --net-player-name=NAME       Sets local player name in a networked game\n"
 			       "  --net-player-number=NUMBER   Sets local player number in a networked game\n"
 			       "                               (1 or 2)\n"
-			       "  -p, --net-port=PORT          Local port to bind (default is 1333)\n"
-			       "  -d, --net-delay=FRAMES       Set lag-compensation delay (default is 1)\n", argv[0]);
+"  -p, --net-port=PORT          Local port to bind (default is 1333)\n"
+			       "  -d, --net-delay=FRAMES       Set lag-compensation delay (default is 1)\n\n"
+			       "  --regress-replay-check       Record every tick and prove the replay reproduces\n"
+			       "                               the live frame byte for byte (slow)\n"
+			       "  --regress-interp-check       Same, via the interpolated renderer at alpha=1\n"
+			       "                               (the frame the 60 Hz presentation actually shows)\n",
+			       argv[0]);
 			exit(0);
 			break;
 			
@@ -190,6 +206,31 @@ void JE_paramCheck(int argc, char *argv[])
 			}
 			break;
 		}
+		case 258: // --regress-replay-check
+			// Recording is requested independently of the smooth-motion path, so
+			// this works on detail levels where the 60 Hz presentation is off.
+			// The replay check and the interp check are mutually exclusive inside
+			// drawlist_frame_end(), hence the explicit else.
+			if (!interp_check_requested)
+			{
+				replay_check_requested = true;
+				drawlist_set_enabled(true);
+				drawlist_set_check(true);
+				// Arm first, so the log's header can name the right check.
+				drawlist_open_check_log();
+				atexit(drawlist_print_check_summary);
+			}
+			break;
+		case 259: // --regress-interp-check
+			if (!replay_check_requested)
+			{
+				interp_check_requested = true;
+				drawlist_set_enabled(true);
+				drawlist_set_interp_check(true);
+				drawlist_open_check_log();
+				atexit(drawlist_print_check_summary);
+			}
+			break;
 		case 'X':
 			override_xmas = true;
 			xmas = true;

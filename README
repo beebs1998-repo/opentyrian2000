@@ -15,11 +15,37 @@ It is using value 5. The same as ref repo :
 ## Zinglon missing frame effect fix
 This occured probably from 60Hz modification, fixed.
 
+## Clouds are transparent on High Detail
+Clouds (background 2) now blend 50/50 with whatever is behind them on every
+detail level, so enemies under a cloud stay visible. Previously High Detail
+forced opaque clouds, which looked like a transparency bug but was the original
+Tyrian behaviour (only Pentium and above had `wild` set). High Detail also now
+keeps the 60 Hz presentation, which it used to disable.
+
+## Smooth motion can be turned off
+Setup - Graphics - Smooth Motion. On (the default) presents at the display
+refresh rate by interpolating between logic ticks; off restores the original
+single-frame path. The setting is stored as `smooth_motion` under `[video]` in
+`opentyrian.cfg`. It has no effect on Nonstandard VGA, which never enables it.
+
 Known bugs
-================================================================================
+===============================================================================
 - Blank on playfield. Press ESC to bring up menu should fixed it, otherwise 
 restart the game.
 - Blank on options menu, restart the game.
+
+The 60 Hz presentation shows a replay of the recorded frame rather than the
+framebuffer itself, so a replay bug shows up directly on screen. To find one,
+run with `--regress-interp-check`: it renders every tick through the
+interpolated renderer at alpha = 1 and reports the first pixel that differs
+from the real frame. `--regress-replay-check` does the same via the plain
+replay path.
+
+Results go to `drawlist-regress.log`, next to `opentyrian.cfg` in the working
+directory. It is written as frames are checked, not only when you quit, so a
+crash or a hard kill still leaves you something to read. The game is a
+GUI-subsystem binary, which is why this file exists: `stderr` is thrown away
+unless you redirect it by hand.
 
 OpenTyrian2000
 ================================================================================

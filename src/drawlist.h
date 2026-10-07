@@ -272,6 +272,16 @@ unsigned long drawlist_checked_frames(void);
 unsigned long drawlist_mismatched_frames(void);
 const char *drawlist_first_mismatch(void);   // NULL when all matched
 
+// Opens drawlist-regress.log beside opentyrian.cfg and reports progress there
+// as frames are checked, in addition to stderr.  Needed because the game links
+// as a GUI-subsystem PE, where stderr is discarded unless the parent redirects
+// it.  Called by the --regress-* flags; harmless when no check is armed.
+void drawlist_open_check_log(void);
+
+// Prints the check summary and closes the log.  Registered with atexit() by
+// the --regress-* flags; reports nothing when no check was armed.
+void drawlist_print_check_summary(void);
+
 // --- stage 3: interpolation ---------------------------------------------------
 //
 // Recording keeps the two most recent tick lists (double buffered).  At any

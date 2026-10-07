@@ -25,6 +25,9 @@ tyrian.sav
 /stderr.txt
 /stdout.txt
 
+# Regression check output (--regress-replay-check / --regress-interp-check)
+/drawlist-regress.log
+
 # MSVC build output and project
 /opentyrian-*.exe
 /opentyrian-*.ilk

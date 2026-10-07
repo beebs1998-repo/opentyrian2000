@@ -20,12 +20,14 @@
 
 #include "backgrnd.h"
 #include "config.h"
+#include "file.h"
 #include "palette.h"
 #include "player.h"
 #include "vga256d.h"
 #include "video.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,6 +37,11 @@
 // Command buffering.  Fixed capacity allocated once; no per-frame allocation.
 #define DL_MAX_COMMANDS  (1u << 15)   // 32768 entries, comfortably above one tick
 #define DL_PAYLOAD_BYTES (1u << 18)   // 256 KiB bulk payload arena per tick
+
+// How often a failing byte-exact check repeats its stderr/log report after the
+// first one, and how often it reports progress while frames pass, so a long
+// run that mismatches on every tick stays readable.
+#define DL_CHECK_REPORT_EVERY 300UL
 
 // Emission tag buffer geometry (one byte per pixel of a gameplay surface).
 #define DL_TAG_W 320
@@ -135,6 +142,65 @@ static char dl_first_mismatch[128] = "";
 static char dl_first_mismatch_saved[128] = "";
 static int dl_debug_diffs = 0;
 static int dl_debug_total = 0;
+
+// Where the byte-exact checks write as they go.  stderr alone is not enough:
+// the game links as a GUI-subsystem PE, where stderr is discarded unless the
+// parent redirects it, so a run started by double-clicking would produce no
+// evidence at all.  Opened only when a check is armed; NULL otherwise.
+static FILE *dl_check_log = NULL;
+
+// Single sink for check output so nothing can report to one channel and forget
+// the other.  Flushed on every call, so a hard kill still leaves the log usable.
+static void dl_check_logf(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+
+	if (dl_check_log != NULL)
+	{
+		va_start(ap, fmt);
+		vfprintf(dl_check_log, fmt, ap);
+		va_end(ap);
+		fflush(dl_check_log);
+	}
+}
+
+// Periodic "still running" line, so the log is useful for a session that is
+// never quit cleanly.  Reported against dl_checked so it advances once per
+// checked frame rather than once per report interval.
+static void dl_check_progress(void)
+{
+	if (dl_checked == 0 || dl_checked % DL_CHECK_REPORT_EVERY != 0)
+		return;
+
+	dl_check_logf("%s check: %lu frames checked so far, %lu differ.\n",
+	              dl_interp_check ? "Interp" : "Replay", dl_checked, dl_mismatched);
+}
+
+void drawlist_open_check_log(void)
+{
+	if (dl_check_log != NULL)
+		return;
+
+	// Truncate: one run, one result.  Beside opentyrian.cfg, which on Windows
+	// is the working directory (see get_user_directory()).
+	dl_check_log = dir_fopen_warn(get_user_directory(), "drawlist-regress.log", "w");
+
+	if (dl_check_log == NULL)
+	{
+		dl_check_logf("warning: could not open drawlist-regress.log; "
+		              "results will only reach stderr.\n");
+		return;
+	}
+
+	dl_check_logf("%s check armed. Progress is written to %s/drawlist-regress.log "
+	              "as frames are checked, and summarised on exit.\n",
+	              dl_interp_check ? "Interp" : "Replay",
+	              get_user_directory());
+}
 
 bool drawlist_enabled(void)
 {
@@ -828,6 +894,15 @@ void drawlist_level_reset(void)
 	dl_have_prev = false;
 	dl_ref_valid = false;
 	dl_last = -1;
+
+	// The recorded sets themselves must go too.  drawlist_frame_end() derives
+	// dl_have_prev from the *other* set's count, so leaving the previous level's
+	// count in place makes it true on this level's very first tick: the renderer
+	// would then interpolate the new level's frame against the old level's stale
+	// commands, pairing up stale positions, background `map` pointers and sprite
+	// sheets.  payload_used is never read back, so it needs no reset.
+	dl_sets[0].count = 0;
+	dl_sets[1].count = 0;
 }
 
 void drawlist_frame_begin(void)
@@ -2105,8 +2180,15 @@ void drawlist_frame_end(void)
 			if (dl_mismatched == 0)
 				memcpy(dl_first_mismatch_saved, dl_first_mismatch, sizeof dl_first_mismatch_saved);
 			dl_mismatched++;
-			fprintf(stderr, "Replay check: mismatch #%lu at %s.", dl_mismatched, dl_first_mismatch);
+
+			// dl_compare_frames() has already dumped this frame's differing
+			// pixels; repeat only occasionally so a level that mismatches on
+			// every one of its thousands of ticks stays readable.
+			if (dl_mismatched == 1 || dl_mismatched % DL_CHECK_REPORT_EVERY == 0)
+				dl_check_logf("Replay check: mismatch #%lu at %s.\n", dl_mismatched, dl_first_mismatch);
 		}
+
+		dl_check_progress();
 	}
 
 	// Stage 3 proof: build the interpolated frame at alpha = 1 with the
@@ -2130,8 +2212,15 @@ void drawlist_frame_end(void)
 			if (dl_mismatched == 0)
 				memcpy(dl_first_mismatch_saved, dl_first_mismatch, sizeof dl_first_mismatch_saved);
 			dl_mismatched++;
-			fprintf(stderr, "Interp check: mismatch #%lu at %s.", dl_mismatched, dl_first_mismatch);
+
+			// A systematically wrong level mismatches on every one of its
+			// thousands of ticks, so report the first in full (dl_compare_frames
+			// has already dumped its differing pixels) and then only occasionally.
+			if (dl_mismatched == 1 || dl_mismatched % DL_CHECK_REPORT_EVERY == 0)
+				dl_check_logf("Interp check: mismatch #%lu at %s.\n", dl_mismatched, dl_first_mismatch);
 		}
+
+		dl_check_progress();
 	}
 
 	dl_count = 0;
@@ -2151,4 +2240,45 @@ unsigned long drawlist_mismatched_frames(void)
 const char *drawlist_first_mismatch(void)
 {
 	return dl_first_mismatch_saved[0] != '\0' ? dl_first_mismatch_saved : NULL;
+}
+
+// End-of-run summary for the byte-exact replay/interp checks, wired to atexit()
+// by --regress-replay-check / --regress-interp-check.  Reports nothing at all
+// when no check was armed, so it is safe to leave registered.
+//
+// A run that armed a check but never reached a level is reported explicitly:
+// "no frames" must not be indistinguishable from "no check", or a mistyped
+// invocation looks exactly like a clean pass.
+void drawlist_print_check_summary(void)
+{
+	if (!dl_check && !dl_interp_check)
+		goto done;
+
+	if (dl_checked == 0)
+	{
+		dl_check_logf("%s check armed but no frames were checked: the run never "
+		              "reached a level. Draw lists are recorded only during "
+		              "gameplay, so quit from the title screen and try again.\n",
+		              dl_interp_check ? "Interp" : "Replay");
+		goto done;
+	}
+
+	if (dl_mismatched == 0)
+	{
+		dl_check_logf("%s check: %lu/%lu frames byte-identical to the live frame.\n",
+		              dl_interp_check ? "Interp" : "Replay", dl_checked, dl_checked);
+	}
+	else
+	{
+		dl_check_logf("%s check: %lu of %lu frames differ. First: %s.\n",
+		              dl_interp_check ? "Interp" : "Replay",
+		              dl_mismatched, dl_checked, drawlist_first_mismatch());
+	}
+
+done:
+	if (dl_check_log != NULL)
+	{
+		fclose(dl_check_log);
+		dl_check_log = NULL;
+	}
 }

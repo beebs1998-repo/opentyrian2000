@@ -26,6 +26,7 @@
 #include "font.h"
 #include "fonthand.h"
 #include "helptext.h"
+#include "interp.h"
 #include "joystick.h"
 #include "jukebox.h"
 #include "keyboard.h"
@@ -109,6 +110,18 @@ static const char *getSmallHitboxPickerItem(size_t i, char *buffer, size_t buffe
 	return i == 0 ? "OFF" : "ON";
 }
 
+static size_t getSmoothMotionPickerItemsCount(void)
+{
+	return 2;
+}
+
+static const char *getSmoothMotionPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+
+	return i == 0 ? "OFF" : "ON";
+}
+
 static size_t getReverbPickerItemsCount(void)
 {
 	return 2;
@@ -170,6 +183,7 @@ void setupMenu(void)
 		MENU_ITEM_DISPLAY,
 		MENU_ITEM_SCALER,
 		MENU_ITEM_SCALING_MODE,
+		MENU_ITEM_SMOOTH_MOTION,
 		MENU_ITEM_MUSIC_VOLUME,
 		MENU_ITEM_SOUND_VOLUME,
 		MENU_ITEM_GAMEPLAY,
@@ -223,6 +237,7 @@ void setupMenu(void)
 				{ MENU_ITEM_DISPLAY, "Display:", "Change the display mode.", getDisplayPickerItemsCount, getDisplayPickerItem },
 				{ MENU_ITEM_SCALER, "Scaler:", "Change the pixel art scaling algorithm.", getScalerPickerItemsCount, getScalerPickerItem },
 				{ MENU_ITEM_SCALING_MODE, "Scaling Mode:", "Change the scaling mode.", getScalingModePickerItemsCount, getScalingModePickerItem },
+				{ MENU_ITEM_SMOOTH_MOTION, "Smooth Motion:", "Interpolate between logic ticks so the game presents at the display refresh rate.", getSmoothMotionPickerItemsCount, getSmoothMotionPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -339,6 +354,10 @@ void setupMenu(void)
 
 			case MENU_ITEM_SCALING_MODE:
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, scaling_mode_names[scaling_mode], normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				break;
+
+			case MENU_ITEM_SMOOTH_MOTION:
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, interp_smooth_motion ? "ON" : "OFF", normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
 				break;
 
 			case MENU_ITEM_SMALL_HITBOX:
@@ -710,6 +729,14 @@ void setupMenu(void)
 					pickerSelectedIndex = scaling_mode;
 					break;
 				}
+			case MENU_ITEM_SMOOTH_MOTION:
+				{
+					JE_playSampleNum(S_CLICK);
+
+					currentPicker = selectedMenuItemId;
+					pickerSelectedIndex = interp_smooth_motion ? 1 : 0;
+					break;
+				}
 				case MENU_ITEM_SMALL_HITBOX:
 				{
 					JE_playSampleNum(S_CLICK);
@@ -899,6 +926,14 @@ void setupMenu(void)
 				case MENU_ITEM_SCALING_MODE:
 				{
 					scaling_mode = pickerSelectedIndex;
+					break;
+				}
+				case MENU_ITEM_SMOOTH_MOTION:
+				{
+					// interp_active() re-reads this every tick and drawlist's
+					// enabled-state transition resets the recorded history, so no
+					// apply*() step is needed here.
+					interp_smooth_motion = (pickerSelectedIndex == 1);
 					break;
 				}
 				case MENU_ITEM_SMALL_HITBOX:
