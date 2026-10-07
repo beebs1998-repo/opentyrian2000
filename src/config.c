@@ -214,6 +214,10 @@ bool load_opentyrian_config(void)
 	fullscreen_display = -1;
 	set_scaler_by_name("Scale2x");
 	small_hitbox_enabled = false;
+	reverb_enabled = false;
+	stereo_enabled = false;
+	surround_enabled = false;
+	stereo_width = StereoWidth_Normal;
 	memcpy(keySettings, defaultKeySettings, sizeof(keySettings));
 	memcpy(mouseSettings, defaultMouseSettings, sizeof(mouseSettings));
 	
@@ -253,6 +257,31 @@ bool load_opentyrian_config(void)
 		if (config_get_string_option(section, "small_hitbox", &small_hitbox))
 		{
 			small_hitbox_enabled = (strcmp(small_hitbox, "on") == 0 || strcmp(small_hitbox, "ON") == 0 || strcmp(small_hitbox, "On") == 0);
+		}
+	}
+
+	section = config_find_section(config, "audio", NULL);
+	if (section != NULL)
+	{
+		config_get_bool_option(section, "reverb", &reverb_enabled);
+		config_get_bool_option(section, "stereo", &stereo_enabled);
+		config_get_bool_option(section, "surround", &surround_enabled);
+
+		// The two cannot both be active; see applyStereo().
+		if (stereo_enabled && surround_enabled)
+			stereo_enabled = false;
+
+		const char *stereo_width_name;
+		if (config_get_string_option(section, "stereo_width", &stereo_width_name))
+		{
+			for (unsigned i = 0; i < COUNTOF(stereoWidthNames); ++i)
+			{
+				if (strcmp(stereo_width_name, stereoWidthNames[i]) == 0)
+				{
+					stereo_width = (StereoWidth)i;
+					break;
+				}
+			}
 		}
 	}
 
@@ -317,6 +346,18 @@ bool save_opentyrian_config(void)
 		exit(EXIT_FAILURE);  // out of memory
 
 	config_set_string_option(section, "small_hitbox", small_hitbox_enabled ? "on" : "off");
+
+	section = config_find_or_add_section(config, "audio", NULL);
+	if (section == NULL)
+		exit(EXIT_FAILURE);  // out of memory
+
+	config_set_bool_option(section, "reverb", reverb_enabled, OFF_ON);
+
+	config_set_bool_option(section, "stereo", stereo_enabled, OFF_ON);
+
+	config_set_bool_option(section, "surround", surround_enabled, OFF_ON);
+
+	config_set_string_option(section, "stereo_width", stereoWidthNames[stereo_width]);
 
 	section = config_find_or_add_section(config, "keyboard", NULL);
 	if (section == NULL)
@@ -850,6 +891,8 @@ void JE_loadConfiguration(void)
 		fxVolume = 255;
 	
 	set_volume(tyrMusicVolume, fxVolume);
+	applyReverb();
+	applyStereo();
 	
 	fi = dir_fopen_warn(get_user_directory(), "tyrian.sav", "rb");
 	if (fi)

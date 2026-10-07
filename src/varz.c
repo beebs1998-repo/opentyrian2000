@@ -31,8 +31,10 @@
 #include "nortsong.h"
 #include "nortvars.h"
 #include "opentyr.h"
+#include "reverb.h"
 #include "shots.h"
 #include "sprite.h"
+#include "stereo.h"
 #include "vga256d.h"
 #include "video.h"
 #include "drawlist.h"
@@ -199,6 +201,10 @@ JE_longint galagaLife;
 JE_boolean debug = false; /*Debug Mode*/
 
 bool small_hitbox_enabled = false;
+bool reverb_enabled = false;
+bool stereo_enabled = false;
+bool surround_enabled = false;
+StereoWidth stereo_width = StereoWidth_Normal;
 Uint32 debugTime, lastDebugTime;
 JE_longint debugHistCount;
 JE_real debugHist;
@@ -416,6 +422,27 @@ void applySmallHitbox(void)
 			player[i].shot_hit_area_y = 14;
 		}
 	}
+}
+
+void applyReverb(void)
+{
+	reverb_set_enabled(reverb_enabled);
+}
+
+void applyStereo(void)
+{
+	/* Stereo and Surround both turn the mono mix into the channel pair, so
+	 * there is nothing to chain them through: exactly one can be active.
+	 * The menu keeps the two toggles exclusive as well, so the displayed
+	 * state matches what is actually being applied. */
+	if (surround_enabled)
+		stereo_set_mode(StereoMode_MidSide);
+	else if (stereo_enabled)
+		stereo_set_mode(StereoMode_Haas);
+	else
+		stereo_set_mode(StereoMode_Off);
+
+	stereo_set_width(stereo_width);
 }
 
 JE_word JE_SGr(JE_word ship, Sprite2_array **ptr)

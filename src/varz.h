@@ -23,6 +23,7 @@
 #include "opentyr.h"
 #include "player.h"
 #include "sprite.h"
+#include "stereo.h"
 
 #include <stdbool.h>
 
@@ -263,6 +264,14 @@ extern JE_byte soundQueue[8];
 
 extern bool small_hitbox_enabled;
 void applySmallHitbox(void);
+
+extern bool reverb_enabled;
+void applyReverb(void);
+
+extern bool stereo_enabled;
+extern bool surround_enabled;
+extern StereoWidth stereo_width;
+void applyStereo(void);
 
 extern JE_boolean enemyContinualDamage;
 extern JE_boolean enemiesActive;

@@ -109,6 +109,54 @@ static const char *getSmallHitboxPickerItem(size_t i, char *buffer, size_t buffe
 	return i == 0 ? "OFF" : "ON";
 }
 
+static size_t getReverbPickerItemsCount(void)
+{
+	return 2;
+}
+
+static const char *getReverbPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+
+	return i == 0 ? "OFF" : "ON";
+}
+
+static size_t getStereoPickerItemsCount(void)
+{
+	return 2;
+}
+
+static const char *getStereoPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+
+	return i == 0 ? "OFF" : "ON";
+}
+
+static size_t getSurroundPickerItemsCount(void)
+{
+	return 2;
+}
+
+static const char *getSurroundPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+
+	return i == 0 ? "OFF" : "ON";
+}
+
+static size_t getStereoWidthPickerItemsCount(void)
+{
+	return (size_t)StereoWidth_MAX;
+}
+
+static const char *getStereoWidthPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+
+	return stereoWidthNames[i];
+}
+
 void setupMenu(void)
 {
 	typedef enum
@@ -126,6 +174,10 @@ void setupMenu(void)
 		MENU_ITEM_SOUND_VOLUME,
 		MENU_ITEM_GAMEPLAY,
 		MENU_ITEM_SMALL_HITBOX,
+		MENU_ITEM_REVERB,
+		MENU_ITEM_STEREO,
+		MENU_ITEM_STEREO_WIDTH,
+		MENU_ITEM_SURROUND,
 	} MenuItemId;
 
 	typedef enum
@@ -149,7 +201,7 @@ void setupMenu(void)
 	typedef struct
 	{
 		const char *header;
-		const MenuItem items[6];
+		const MenuItem items[8];
 	} Menu;
 
 	static const Menu menus[] = {
@@ -180,6 +232,10 @@ void setupMenu(void)
 			.items = {
 				{ MENU_ITEM_MUSIC_VOLUME, "Music Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_SOUND_VOLUME, "Sound Volume", "Change volume with the left/right arrow keys." },
+				{ MENU_ITEM_REVERB, "Reverb", "Add echo and room ambience to the sound.", getReverbPickerItemsCount, getReverbPickerItem },
+				{ MENU_ITEM_STEREO, "Stereo", "Widen the sound across the left and right channels.", getStereoPickerItemsCount, getStereoPickerItem },
+				{ MENU_ITEM_STEREO_WIDTH, "Stereo Width:", "How far apart the Stereo channels sit. Wider is wider but leans left.", getStereoWidthPickerItemsCount, getStereoWidthPickerItem },
+				{ MENU_ITEM_SURROUND, "Surround", "Widen the sound diffusely. Stays centred and keeps mono clean.", getSurroundPickerItemsCount, getSurroundPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -299,6 +355,22 @@ void setupMenu(void)
 				JE_rectangle(VGAScreen, xMenuItemValue - 2, y - 2, xMenuItemValue + 96, y + 11, 242);
 				break;
 
+			case MENU_ITEM_REVERB:
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, reverb_enabled ? "ON" : "OFF", normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				break;
+
+			case MENU_ITEM_STEREO:
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, stereo_enabled ? "ON" : "OFF", normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				break;
+
+			case MENU_ITEM_STEREO_WIDTH:
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, stereoWidthNames[stereo_width], normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				break;
+
+			case MENU_ITEM_SURROUND:
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, surround_enabled ? "ON" : "OFF", normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				break;
+
 			default:
 				break;
 			}
@@ -405,6 +477,22 @@ void setupMenu(void)
 									case MENU_ITEM_SCALER:
 									case MENU_ITEM_SCALING_MODE:
 									case MENU_ITEM_SMALL_HITBOX:
+									case MENU_ITEM_REVERB:
+									{
+										action = true;
+										break;
+									}
+									case MENU_ITEM_STEREO:
+									{
+										action = true;
+										break;
+									}
+									case MENU_ITEM_STEREO_WIDTH:
+									{
+										action = true;
+										break;
+									}
+									case MENU_ITEM_SURROUND:
 									{
 										action = true;
 										break;
@@ -630,6 +718,38 @@ void setupMenu(void)
 					pickerSelectedIndex = small_hitbox_enabled ? 1 : 0;
 					break;
 				}
+				case MENU_ITEM_REVERB:
+				{
+					JE_playSampleNum(S_CLICK);
+
+					currentPicker = selectedMenuItemId;
+					pickerSelectedIndex = reverb_enabled ? 1 : 0;
+					break;
+				}
+				case MENU_ITEM_STEREO:
+				{
+					JE_playSampleNum(S_CLICK);
+
+					currentPicker = selectedMenuItemId;
+					pickerSelectedIndex = stereo_enabled ? 1 : 0;
+					break;
+				}
+				case MENU_ITEM_SURROUND:
+				{
+					JE_playSampleNum(S_CLICK);
+
+					currentPicker = selectedMenuItemId;
+					pickerSelectedIndex = surround_enabled ? 1 : 0;
+					break;
+				}
+				case MENU_ITEM_STEREO_WIDTH:
+				{
+					JE_playSampleNum(S_CLICK);
+
+					currentPicker = selectedMenuItemId;
+					pickerSelectedIndex = stereo_width;
+					break;
+				}
 				case MENU_ITEM_MUSIC_VOLUME:
 				{
 					JE_playSampleNum(S_CLICK);
@@ -785,6 +905,34 @@ void setupMenu(void)
 				{
 					small_hitbox_enabled = (pickerSelectedIndex == 1);
 					applySmallHitbox();
+					break;
+				}
+				case MENU_ITEM_REVERB:
+				{
+					reverb_enabled = (pickerSelectedIndex == 1);
+					applyReverb();
+					break;
+				}
+				case MENU_ITEM_STEREO:
+				{
+					stereo_enabled = (pickerSelectedIndex == 1);
+					if (stereo_enabled)
+						surround_enabled = false;
+					applyStereo();
+					break;
+				}
+				case MENU_ITEM_SURROUND:
+				{
+					surround_enabled = (pickerSelectedIndex == 1);
+					if (surround_enabled)
+						stereo_enabled = false;
+					applyStereo();
+					break;
+				}
+				case MENU_ITEM_STEREO_WIDTH:
+				{
+					stereo_width = (StereoWidth)pickerSelectedIndex;
+					applyStereo();
 					break;
 				}
 				default:

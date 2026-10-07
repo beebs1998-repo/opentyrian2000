@@ -117,6 +117,7 @@
     <ClCompile Include="..\src\config.c" />
     <ClCompile Include="..\src\config_file.c" />
     <ClCompile Include="..\src\destruct.c" />
+    <ClCompile Include="..\src\drawlist.c" />
     <ClCompile Include="..\src\editship.c" />
     <ClCompile Include="..\src\episodes.c" />
     <ClCompile Include="..\src\file.c" />
@@ -124,6 +125,7 @@
     <ClCompile Include="..\src\fonthand.c" />
     <ClCompile Include="..\src\game_menu.c" />
     <ClCompile Include="..\src\helptext.c" />
+    <ClCompile Include="..\src\interp.c" />
     <ClCompile Include="..\src\joystick.c" />
     <ClCompile Include="..\src\jukebox.c" />
     <ClCompile Include="..\src\keyboard.c" />
@@ -147,11 +149,13 @@
     <ClCompile Include="..\src\pcxmast.c" />
     <ClCompile Include="..\src\picload.c" />
     <ClCompile Include="..\src\player.c" />
+    <ClCompile Include="..\src\reverb.c" />
     <ClCompile Include="..\src\shots.c" />
     <ClCompile Include="..\src\sizebuf.c" />
     <ClCompile Include="..\src\sndmast.c" />
     <ClCompile Include="..\src\sprite.c" />
     <ClCompile Include="..\src\starlib.c" />
+    <ClCompile Include="..\src\stereo.c" />
     <ClCompile Include="..\src\tyrian2.c" />
     <ClCompile Include="..\src\varz.c" />
     <ClCompile Include="..\src\vga256d.c" />
@@ -175,6 +179,7 @@
     <ClInclude Include="..\src\fonthand.h" />
     <ClInclude Include="..\src\game_menu.h" />
     <ClInclude Include="..\src\helptext.h" />
+    <ClInclude Include="..\src\interp.h" />
     <ClInclude Include="..\src\joystick.h" />
     <ClInclude Include="..\src\jukebox.h" />
     <ClInclude Include="..\src\keyboard.h" />
@@ -199,11 +204,13 @@
     <ClInclude Include="..\src\pcxmast.h" />
     <ClInclude Include="..\src\picload.h" />
     <ClInclude Include="..\src\player.h" />
+    <ClInclude Include="..\src\reverb.h" />
     <ClInclude Include="..\src\shots.h" />
     <ClInclude Include="..\src\sizebuf.h" />
     <ClInclude Include="..\src\sndmast.h" />
     <ClInclude Include="..\src\sprite.h" />
     <ClInclude Include="..\src\starlib.h" />
+    <ClInclude Include="..\src\stereo.h" />
     <ClInclude Include="..\src\tyrian2.h" />
     <ClInclude Include="..\src\varz.h" />
     <ClInclude Include="..\src\vga256d.h" />

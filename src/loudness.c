@@ -23,6 +23,8 @@
 #include "nortsong.h"
 #include "opentyr.h"
 #include "params.h"
+#include "reverb.h"
+#include "stereo.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -38,6 +40,10 @@ unsigned int song_playing = 0;
 bool audio_disabled = false, music_disabled = false, samples_disabled = false;
 
 static SDL_AudioDeviceID audioDevice = 0;
+
+static Uint8 audioChannels = 1;
+static Sint16 *monoBuffer = NULL;
+static size_t monoBufferFrames = 0;
 
 static Uint8 musicVolume = 255;
 static Uint8 sampleVolume = 255;
@@ -85,7 +91,7 @@ bool init_audio(void)
 
 	ask.freq = 11025 * OUTPUT_QUALITY;
 	ask.format = AUDIO_S16SYS;
-	ask.channels = 1;
+	ask.channels = 2;
 	ask.samples = 256 * OUTPUT_QUALITY; // ~23 ms
 	ask.callback = audioCallback;
 
@@ -111,12 +117,34 @@ bool init_audio(void)
 
 	audioSampleRate = got.freq;
 
+	// The channel count is never negotiable (it isn't in allowedChanges), but
+	// stay defensive: stereo_spread degrades to a plain duplication if we end
+	// up somewhere unexpected rather than scribbling over the stream.
+	audioChannels = got.channels > 0 ? got.channels : 1;
+
+	// The OPL emulator, the SFX mixer and the reverb are all mono, so they mix
+	// into a scratch buffer which is then spread across the output channels.
+	monoBufferFrames = got.samples;
+	monoBuffer = malloc(monoBufferFrames * sizeof *monoBuffer);
+	if (monoBuffer == NULL)
+	{
+		fprintf(stderr, "error: failed to allocate audio buffer\n");
+		audio_disabled = true;
+		SDL_CloseAudioDevice(audioDevice);
+		audioDevice = 0;
+		return false;
+	}
+
 	samplesPerLdsUpdate = 2 * (audioSampleRate / ldsUpdate2Rate);
 	samplesPerLdsUpdateFrac = 2 * (audioSampleRate % ldsUpdate2Rate);
 
 	volumeFactorTable[0] = 0;
 	for (size_t i = 1; i < 256; ++i)
 		volumeFactorTable[i] = TO_FIXED(powf(10, (255 - i) * (-volumeRange / (20.0f * 255))));
+
+	reverb_init(audioSampleRate);
+
+	stereo_init(audioSampleRate);
 
 	opl_init();
 
@@ -129,8 +157,8 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 {
 	(void)userdata;
 
-	Sint16 *const samples = (Sint16 *)stream;
-	const int samplesCount = size / sizeof (Sint16);
+	Sint16 *const samples = monoBuffer;
+	const int samplesCount = MIN(size / (int)(sizeof (Sint16) * audioChannels), (int)monoBufferFrames);
 
 	if (!music_disabled && !music_stopped)
 	{
@@ -222,6 +250,10 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 			remainingCount -= 1;
 		}
 	}
+
+	reverb_process(samples, samplesCount);
+
+	stereo_spread(samples, (Sint16 *)stream, samplesCount, audioChannels);
 }
 
 void deinit_audio(void)
@@ -239,6 +271,14 @@ void deinit_audio(void)
 	SDL_QuitSubSystem(SDL_INIT_AUDIO);
 
 	memset(channelSampleCount, 0, sizeof channelSampleCount);
+
+	free(monoBuffer);
+	monoBuffer = NULL;
+	monoBufferFrames = 0;
+
+	reverb_deinit();
+
+	stereo_deinit();
 
 	lds_free();
 }
