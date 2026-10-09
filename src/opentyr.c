@@ -170,6 +170,61 @@ static const char *getStereoWidthPickerItem(size_t i, char *buffer, size_t buffe
 	return stereoWidthNames[i];
 }
 
+/* Splits `text` into two lines at the word boundary nearest its midpoint,
+   rejecting any boundary whose longer half would exceed `maxWidth`. Returns
+   false when the text already fits on one line, or when no boundary
+   qualifies, i.e. a single word wider than the limit; the caller then falls
+   back to drawing the text on one line. */
+static bool wrapHintText(const char *text, int maxWidth,
+                         char *line1, size_t line1Size,
+                         char *line2, size_t line2Size)
+{
+	const int total = JE_textWidth(text, TINY_FONT);
+
+	if (total <= maxWidth)
+		return false;
+
+	size_t bestSplit = 0;
+	int bestImbalance = total;
+	bool found = false;
+
+	/* JE_textWidth() is a per-character sum, so a single-character string gives
+	   that character's advance. Accumulating them gives the width of the prefix
+	   up to and including text[i], without building a temporary string. */
+	int prefix = 0;
+	for (size_t i = 0; text[i] != '\0'; ++i)
+	{
+		const int advance = JE_textWidth(&text[i], TINY_FONT);
+		prefix += advance;
+
+		if (text[i] != ' ')
+			continue;
+
+		/* The break space belongs to neither line. */
+		const int width1 = prefix - advance;
+		const int width2 = total - prefix;
+
+		if (width1 > maxWidth || width2 > maxWidth)
+			continue;
+
+		const int imbalance = abs(width1 - width2);
+		if (!found || imbalance < bestImbalance)
+		{
+			found = true;
+			bestImbalance = imbalance;
+			bestSplit = i;
+		}
+	}
+
+	if (!found)
+		return false;
+
+	snprintf(line1, line1Size, "%.*s", (int)bestSplit, text);
+	snprintf(line2, line2Size, "%s", text + bestSplit + 1);
+
+	return true;
+}
+
 void setupMenu(void)
 {
 	typedef enum
@@ -237,7 +292,7 @@ void setupMenu(void)
 				{ MENU_ITEM_DISPLAY, "Display:", "Change the display mode.", getDisplayPickerItemsCount, getDisplayPickerItem },
 				{ MENU_ITEM_SCALER, "Scaler:", "Change the pixel art scaling algorithm.", getScalerPickerItemsCount, getScalerPickerItem },
 				{ MENU_ITEM_SCALING_MODE, "Scaling Mode:", "Change the scaling mode.", getScalingModePickerItemsCount, getScalingModePickerItem },
-				{ MENU_ITEM_SMOOTH_MOTION, "Smooth Motion:", "Interpolate between logic ticks so the game presents at the display refresh rate.", getSmoothMotionPickerItemsCount, getSmoothMotionPickerItem },
+				{ MENU_ITEM_SMOOTH_MOTION, "Smooth Motion:", "Interpolate logic ticks for a smooth display.", getSmoothMotionPickerItemsCount, getSmoothMotionPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -249,7 +304,7 @@ void setupMenu(void)
 				{ MENU_ITEM_SOUND_VOLUME, "Sound Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_REVERB, "Reverb", "Add echo and room ambience to the sound.", getReverbPickerItemsCount, getReverbPickerItem },
 				{ MENU_ITEM_STEREO, "Stereo", "Widen the sound across the left and right channels.", getStereoPickerItemsCount, getStereoPickerItem },
-				{ MENU_ITEM_STEREO_WIDTH, "Stereo Width:", "How far apart the Stereo channels sit. Wider is wider but leans left.", getStereoWidthPickerItemsCount, getStereoWidthPickerItem },
+				{ MENU_ITEM_STEREO_WIDTH, "Stereo Width:", "Stereo separation. Wider is wider but leans left.", getStereoWidthPickerItemsCount, getStereoWidthPickerItem },
 				{ MENU_ITEM_SURROUND, "Surround", "Widen the sound diffusely. Stays centred and keeps mono clean.", getSurroundPickerItemsCount, getSurroundPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
@@ -289,6 +344,12 @@ void setupMenu(void)
 	const int yMenuItems = 37;
 	const int dyMenuItems = 21;
 	const int hMenuItem = 13;
+
+	/* The hint is a full-width line beneath the menu rather than a menu row, so
+	   its limit is what fits the 320px screen with a 10px margin at each side,
+	   not wMenuItem. Nothing in the current set of descriptions reaches it; it
+	   exists so a longer one wraps instead of running off the screen. */
+	const int wHint = 300;
 
 	for (; ; )
 	{
@@ -395,8 +456,24 @@ void setupMenu(void)
 			}
 		}
 
-		// Draw status text.
-		JE_textShade(VGAScreen, xMenuItemName, 190, menuItems[*selectedMenuItemIndex].description, 15, 4, PART_SHADE);
+		// Draw status text. Descriptions wider than a menu row are wrapped onto
+		// two lines; the first at y=178 is clear of the last item row, which
+		// bottoms out at 174.
+		{
+			const char *const desc = menuItems[*selectedMenuItemIndex].description;
+			const int maxWidth = wHint;
+			char line1[256], line2[256];
+
+			if (wrapHintText(desc, maxWidth, line1, sizeof line1, line2, sizeof line2))
+			{
+				JE_textShade(VGAScreen, xCenter - JE_textWidth(line1, TINY_FONT) / 2, 178, line1, 15, 4, PART_SHADE);
+				JE_textShade(VGAScreen, xCenter - JE_textWidth(line2, TINY_FONT) / 2, 190, line2, 15, 4, PART_SHADE);
+			}
+			else
+			{
+				JE_textShade(VGAScreen, xCenter - JE_textWidth(desc, TINY_FONT) / 2, 190, desc, 15, 4, PART_SHADE);
+			}
+		}
 
 		// Draw picker box and items.
 
