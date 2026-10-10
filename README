@@ -1,9 +1,9 @@
-What changed on this repo
+What's changed on this repo
 ================================================================================
-## Add 60Hz interpolation
+## Added 60Hz interpolation
 The game will run at 60 fps on display presentation, but the internal framerate 
-changed from 35 fps to 30 fps. So the game difficulty (Game Speed) is around 
-Slow and Normal Game Speed.
+changed from 35-37 fps (on Normal Game Speed) to 30 fps. So the game difficulty
+(Game Speed) is around Slow and Normal.
 
 ## Removed player inertia
 The ship player now will move and stop like normal shmups.
@@ -11,9 +11,6 @@ The ship player now will move and stop like normal shmups.
 ## Adjusted keyboard speed
 It is using value 5. The same as ref repo :
   https://github.com/Yakkers17/opentyrianlinearmovement
-
-## Zinglon missing frame effect fix
-This occured probably from 60Hz modification, fixed.
 
 ## Clouds are transparent on High Detail
 Clouds (background 2) now blend 50/50 with whatever is behind them on every
@@ -23,15 +20,11 @@ Tyrian behaviour (only Pentium and above had `wild` set). High Detail also now
 keeps the 60 Hz presentation, which it used to disable.
 
 ## Bullet Hell mode
-Setup - Gameplay - Bullet Hell (ON/OFF), off by default. Each enemy volley is
-fanned into three rings 14 degrees apart, so an authored one-shot pattern opens
-into a roughly 28 degree arc with the original pattern down the middle, and the
-fire rate is raised as well. Bullet speed is untouched: the mode gets its
-difficulty from density and pattern shape, which is also what makes it readable.
-The setting is stored as `bullet_hell` under `[gameplay]` in `opentyrian.cfg`.
+Setup - Gameplay - Bullet Hell (ON/OFF), OFF by default. The setting is stored
+as `bullet_hell` under `[gameplay]` in `opentyrian.cfg`.
 
-Bullet Hell turns Small Hitbox on, because it is not survivable on the stock
-hitbox. Turning Small Hitbox back off turns Bullet Hell off with it, so the two
+Bullet Hell turns Small Hitbox ON, because it is not survivable on the stock
+hitbox. Turning Small Hitbox back OFF turns Bullet Hell OFF with it, so the two
 rows can never disagree with what is actually in effect.
 
 Combat score is worth more in this mode: 2x on Easy/Normal, 1.5x from Hard to
@@ -49,10 +42,11 @@ above. Difficulty can also be raised mid-level by level event 46, so the
 density shifts during a battle.
 
 The difficulty menu shows only Easy, Normal and Hard by default. The rest are
-unlocked in the menu itself: hold Shift+G for Impossible, Shift+] for Suicide,
-and type L-O-R-D for Zinglon. Those three are the only way to select the higher
-tiers; Insanity, Maniacal and Nortaneous only ever appear through the
-between-level difficulty rise or a level script.
+unlocked in the menu itself: [spoiler] hold Shift+G for Impossible, Shift+] for
+Suicide, and type L-O-R-D for Zinglon[/spoiler]. Those three are the only way
+to select the higher tiers; Insanity, Maniacal and Nortaneous only ever appear
+through the between-level difficulty rise or a level script.
+Tips: Choosing difficulty beyond HARD is not recommended.
 
 `--regress-bullet-count` reports enemy bullet density per tick: mean and peak
 shot-pool occupancy, mean and peak drawn shots, and how many volleys were
@@ -60,8 +54,8 @@ truncated because the pool was full. It is the number to check when changing
 the tuning constants in `src/varz.h`.
 
 ## Smooth motion can be turned off
-Setup - Graphics - Smooth Motion. On (the default) presents at the display
-refresh rate by interpolating between logic ticks; off restores the original
+Setup - Graphics - Smooth Motion. ON (the default) presents at the display
+refresh rate by interpolating between logic ticks; OFF restores the original
 single-frame path. The setting is stored as `smooth_motion` under `[video]` in
 `opentyrian.cfg`. It has no effect on Nonstandard VGA, which never enables it.
 
