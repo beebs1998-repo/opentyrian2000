@@ -338,6 +338,23 @@ unsigned long drawlist_smoothness_object_events(void);
 unsigned long drawlist_smoothness_frames(void);
 unsigned long drawlist_smoothness_events(void);
 
+// --- bullet density (--regress-bullet-count) ---------------------------------
+//
+// Measures how dense enemy fire actually got, which is the number that decides
+// whether Bullet Hell is tuned sanely.  Two counts per tick are reported
+// because they answer different questions: pool occupancy is what exposes the
+// pool saturating, and drawn shots is what the player actually sees.
+
+void drawlist_set_bullet_check(bool check);
+
+// One tick's telemetry.  `live` is the number of occupied shot-pool slots
+// (including shots spawned since the last update, so a full pool shows up
+// here); `drawn` is how many were blitted.
+void drawlist_note_enemy_shots(unsigned live, unsigned drawn);
+
+// Called once per volley that could not be spawned in full.
+void drawlist_note_shot_pool_exhaustion(void);
+
 // --- parallax guard (--regress-parallax-check) --------------------------------
 //
 // Per level tick, runs the interpolated presentation at both ends of the tick

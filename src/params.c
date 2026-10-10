@@ -62,6 +62,7 @@ void JE_paramCheck(int argc, char *argv[])
 
 		{ 258, 0,   "regress-replay-check",   false },
 		{ 259, 0,   "regress-interp-check",   false },
+		{ 260, 0,   "regress-bullet-count",   false },
 		
 		{ 'X', 'X', "xmas",              false },
 		{ 'c', 'c', "constant",          false },
@@ -79,6 +80,7 @@ void JE_paramCheck(int argc, char *argv[])
 	// command line wins.
 	bool replay_check_requested = false;
 	bool interp_check_requested = false;
+	bool bullet_check_requested = false;
 
 	for (; ; )
 	{
@@ -113,7 +115,10 @@ void JE_paramCheck(int argc, char *argv[])
 			       "  --regress-replay-check       Record every tick and prove the replay reproduces\n"
 			       "                               the live frame byte for byte (slow)\n"
 			       "  --regress-interp-check       Same, via the interpolated renderer at alpha=1\n"
-			       "                               (the frame the 60 Hz presentation actually shows)\n",
+			       "                               (the frame the 60 Hz presentation actually shows)\n"
+			       "  --regress-bullet-count       Report enemy bullet density per tick: pool\n"
+			       "                               occupancy and drawn counts, and any volleys\n"
+			       "                               truncated by a full shot pool\n",
 			       argv[0]);
 			exit(0);
 			break;
@@ -211,7 +216,7 @@ void JE_paramCheck(int argc, char *argv[])
 			// this works on detail levels where the 60 Hz presentation is off.
 			// The replay check and the interp check are mutually exclusive inside
 			// drawlist_frame_end(), hence the explicit else.
-			if (!interp_check_requested)
+			if (!interp_check_requested && !bullet_check_requested)
 			{
 				replay_check_requested = true;
 				drawlist_set_enabled(true);
@@ -222,11 +227,23 @@ void JE_paramCheck(int argc, char *argv[])
 			}
 			break;
 		case 259: // --regress-interp-check
-			if (!replay_check_requested)
+			if (!replay_check_requested && !bullet_check_requested)
 			{
 				interp_check_requested = true;
 				drawlist_set_enabled(true);
 				drawlist_set_interp_check(true);
+				drawlist_open_check_log();
+				atexit(drawlist_print_check_summary);
+			}
+			break;
+		case 260: // --regress-bullet-count
+			// Gameplay telemetry rather than a replay check: it needs no draw
+			// list and does not compare frames, so it is exclusive of the other
+			// two only because they share the one log and the one summary.
+			if (!replay_check_requested && !interp_check_requested)
+			{
+				bullet_check_requested = true;
+				drawlist_set_bullet_check(true);
 				drawlist_open_check_log();
 				atexit(drawlist_print_check_summary);
 			}

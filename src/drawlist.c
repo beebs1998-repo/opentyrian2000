@@ -23,6 +23,7 @@
 #include "file.h"
 #include "palette.h"
 #include "player.h"
+#include "varz.h"
 #include "vga256d.h"
 #include "video.h"
 
@@ -121,6 +122,13 @@ static bool dl_recording = false;
 static bool dl_check = false;
 static bool dl_interp_check = false;
 static bool dl_parallax_check = false;  // regress: prove the presentation is read-only
+static bool dl_bullet_check = false;    // regress: --regress-bullet-count
+static unsigned long dl_bullet_ticks = 0;
+static unsigned long dl_bullet_live_sum = 0;
+static unsigned long dl_bullet_drawn_sum = 0;
+static unsigned long dl_bullet_exhaustions = 0;
+static unsigned dl_bullet_live_peak = 0;
+static unsigned dl_bullet_drawn_peak = 0;
 static bool dl_have_prev = false;   // a previous tick has been recorded
 
 static SDL_Surface *dl_scratch_game = NULL;
@@ -198,7 +206,8 @@ void drawlist_open_check_log(void)
 
 	dl_check_logf("%s check armed. Progress is written to %s/drawlist-regress.log "
 	              "as frames are checked, and summarised on exit.\n",
-	              dl_interp_check ? "Interp" : "Replay",
+	              dl_bullet_check ? "Bullet count"
+	                              : (dl_interp_check ? "Interp" : "Replay"),
 	              get_user_directory());
 }
 
@@ -2242,6 +2251,36 @@ const char *drawlist_first_mismatch(void)
 	return dl_first_mismatch_saved[0] != '\0' ? dl_first_mismatch_saved : NULL;
 }
 
+// --- bullet density (--regress-bullet-count) ---------------------------------
+
+void drawlist_set_bullet_check(bool check)
+{
+	dl_bullet_check = check;
+}
+
+void drawlist_note_enemy_shots(unsigned live, unsigned drawn)
+{
+	if (!dl_bullet_check)
+		return;
+
+	dl_bullet_ticks++;
+	dl_bullet_live_sum += live;
+	dl_bullet_drawn_sum += drawn;
+
+	if (live > dl_bullet_live_peak)
+		dl_bullet_live_peak = live;
+	if (drawn > dl_bullet_drawn_peak)
+		dl_bullet_drawn_peak = drawn;
+}
+
+void drawlist_note_shot_pool_exhaustion(void)
+{
+	if (!dl_bullet_check)
+		return;
+
+	dl_bullet_exhaustions++;
+}
+
 // End-of-run summary for the byte-exact replay/interp checks, wired to atexit()
 // by --regress-replay-check / --regress-interp-check.  Reports nothing at all
 // when no check was armed, so it is safe to leave registered.
@@ -2251,10 +2290,30 @@ const char *drawlist_first_mismatch(void)
 // invocation looks exactly like a clean pass.
 void drawlist_print_check_summary(void)
 {
-	if (!dl_check && !dl_interp_check)
+	if (dl_bullet_check)
+	{
+		if (dl_bullet_ticks == 0)
+		{
+			dl_check_logf("Bullet count armed but no gameplay ticks were seen: the run "
+			              "never reached a level.\n");
+		}
+		else
+		{
+			dl_check_logf(
+				"Bullet count over %lu gameplay ticks: pool occupancy mean %.1f, peak "
+				"%u of %d. Drawn mean %.1f, peak %u. Volleys truncated by a full pool: "
+				"%lu.\n",
+				dl_bullet_ticks,
+				(double)dl_bullet_live_sum / (double)dl_bullet_ticks,
+				dl_bullet_live_peak, ENEMY_SHOT_MAX,
+				(double)dl_bullet_drawn_sum / (double)dl_bullet_ticks,
+				dl_bullet_drawn_peak,
+				dl_bullet_exhaustions);
+		}
+	}
+	else if (!dl_check && !dl_interp_check)
 		goto done;
-
-	if (dl_checked == 0)
+	else if (dl_checked == 0)
 	{
 		dl_check_logf("%s check armed but no frames were checked: the run never "
 		              "reached a level. Draw lists are recorded only during "
@@ -2262,8 +2321,7 @@ void drawlist_print_check_summary(void)
 		              dl_interp_check ? "Interp" : "Replay");
 		goto done;
 	}
-
-	if (dl_mismatched == 0)
+	else if (dl_mismatched == 0)
 	{
 		dl_check_logf("%s check: %lu/%lu frames byte-identical to the live frame.\n",
 		              dl_interp_check ? "Interp" : "Replay", dl_checked, dl_checked);
