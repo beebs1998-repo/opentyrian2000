@@ -60,6 +60,14 @@ PlayerItems;
 typedef struct
 {
 	ulong cash;
+
+	// Extra earned under Bullet Hell, held apart from cash so that cash keeps
+	// its stock meaning: it is the shop budget, the galaga life threshold, and
+	// the value adjust_difficulty() reads to ratchet difficulty.  This is
+	// scored, but not spendable and not part of that ratchet.  Not persisted:
+	// the save format is frozen, so reloading a shop save drops whatever was
+	// accrued since the game started.
+	ulong bullet_hell_bonus;
 	
 	PlayerItems items, last_items;
 	

@@ -312,6 +312,30 @@ enemy_still_exists:
 								enemy[i].eshotwait[j-1] = (enemy[i].eshotwait[j-1] / 2) + 1;
 						}
 
+						/* Bullet Hell speeds the fire up as well as widening it, but it must not
+						   compound with the halvings above: stock already fires 4x as often
+						   at Zinglon and above, and stacking another halving on top of
+						   that measured as 24x the stock bullet density, which pegged the
+						   shot pool.
+
+						   So the bands line up exactly with the stock bands above: Bullet
+						   Hell contributes the most where stock takes the least.  Note the
+						   middle band is inclusive of Maniacal, because stock only applies
+						   its second halving strictly above it -- leaving Maniacal out made
+						   density fall from 8.6x at Suicide to 5.7x at Maniacal, which is
+						   backwards for a mode that is meant to get harder as difficulty
+						   rises.
+
+						   Level event 46 can change difficultyLevel mid-level, so this is
+						   re-evaluated per shot and density can shift during a battle. */
+						if (bullet_hell_enabled)
+						{
+							if (difficultyLevel <= DIFFICULTY_NORMAL)
+								enemy[i].eshotwait[j-1] = (enemy[i].eshotwait[j-1] / 2) + 1;
+							else if (difficultyLevel <= DIFFICULTY_MANIACAL)
+								enemy[i].eshotwait[j-1] = MAX(1, (enemy[i].eshotwait[j-1] * 2) / 3);
+						}
+
 						if (galagaMode && (enemy[i].eyc == 0 || (mt_rand() % 400) >= galagaShotFreq))
 							goto draw_enemy_end;
 
@@ -367,8 +391,99 @@ enemy_still_exists:
 							}
 							break;
 						default:
-						/*Rot*/
-							for (int tempCount = weapons[temp3].multi; tempCount > 0; tempCount--)
+							{
+							/*Rot*/
+						/* Bullet Hell widens an authored volley into a fan: the authored
+						   pattern keeps the centre ring and is echoed either side of it.
+						   Every ring is spawned from the same pattern frame, so the fan is
+						   symmetric -- letting each ring advance eshotmultipos instead
+						   would spread them across the weapon's 8 frames and read as a
+						   spiral rather than a wall. */
+						const int bulletHellRings = bullet_hell_enabled ? BULLET_HELL_RINGS : 1;
+						const float ringStepAngle = bullet_hell_enabled
+							? (float)BULLET_HELL_SPREAD_DEG * (float)M_PI / 180.0f
+							: 0.0f;
+						bool poolExhausted = false;
+
+						for (int tempCount = weapons[temp3].multi; tempCount > 0 && !poolExhausted; tempCount--)
+						{
+							if (++enemy[i].eshotmultipos[j-1] > weapons[temp3].max)
+								enemy[i].eshotmultipos[j-1] = 1;
+
+							const int tempPos = enemy[i].eshotmultipos[j-1] - 1;
+
+							/* Once per authored frame, not once per ring: the ring loop is
+							   Bullet Hell's addition and must not change what a stock volley
+							   sounds like. */
+							if (weapons[temp3].sound > 0)
+							{
+								do
+								{
+									temp = mt_rand() % 8;
+								} while (temp == 3);
+								soundQueue[temp] = weapons[temp3].sound;
+							}
+
+							if (enemy[i].aniactive == 2)
+								enemy[i].aniactive = 1;
+
+							if (j == 1)
+								temp2 = 4;
+
+							/* Aim is resolved once per authored frame, before the ring loop,
+							   not once per ring.  Picking a target in two-player mode draws
+							   from the shared mt_rand() stream, so resolving it inside the ring
+							   loop would consume that stream three times as fast whenever the
+							   mode is on.  That desynchronises demo playback, which reseeds
+							   mt_rand() deterministically at level start and relies on the
+							   whole simulation replaying identically, and it makes a
+							   two-player network game diverge outright when the peers
+							   disagree about the setting.
+
+							   It is also the better shape for the mode: one turret's fan
+							   should converge on one target rather than being split across
+							   both players ring by ring. */
+							JE_integer aimedVelX = 0, aimedVelY = 0;
+							if (weapons[temp3].aim > 0)
+							{
+								JE_byte aim = weapons[temp3].aim;
+
+								/*DIF*/
+								if (difficultyLevel > DIFFICULTY_NORMAL)
+									aim += difficultyLevel - 2;
+
+								JE_word targetX = player[0].x;
+								JE_word targetY = player[0].y;
+
+								if (twoPlayerMode)
+								{
+									// fire at live player(s)
+									if (player[0].is_alive && !player[1].is_alive)
+										temp = 0;
+									else if (player[1].is_alive && !player[0].is_alive)
+										temp = 1;
+									else
+										temp = mt_rand() % 2;
+
+									if (temp == 1)
+									{
+										targetX = player[1].x - 25;
+										targetY = player[1].y;
+									}
+								}
+
+								JE_integer aimX = (targetX + 25) - tempX - tempMapXOfs - 4;
+								if (aimX == 0)
+									aimX = 1;
+								JE_integer aimY = targetY - tempY;
+								if (aimY == 0)
+									aimY = 1;
+								const JE_integer maxMagAim = MAX(abs(aimX), abs(aimY));
+								aimedVelX = roundf((float)aimX / maxMagAim * aim);
+								aimedVelY = roundf((float)aimY / maxMagAim * aim);
+							}
+
+							for (int ring = 0; ring < bulletHellRings; ring++)
 							{
 								for (b = 0; b < ENEMY_SHOT_MAX; b++)
 								{
@@ -376,36 +491,27 @@ enemy_still_exists:
 										break;
 								}
 								if (b == ENEMY_SHOT_MAX)
-									goto draw_enemy_end;
+								{
+									/* Out of slots.  Skip the rest of this volley instead of
+									   jumping to draw_enemy_end: that path abandoned the
+									   enemy's remaining turrets and its whole launch routine,
+									   so a saturated screen made bosses stop spawning adds.
+									   Raising density tenfold would have made that routine,
+									   and bullet hell wants a dropped bullet, never a boss
+									   that stops fighting. */
+									poolExhausted = true;
+									drawlist_note_shot_pool_exhaustion();
+									break;
+								}
 
 								enemyShotAvail[b] = !enemyShotAvail[b];
 
-								if (weapons[temp3].sound > 0)
-								{
-									do
-									{
-										temp = mt_rand() % 8;
-									} while (temp == 3);
-									soundQueue[temp] = weapons[temp3].sound;
-								}
-
-								if (enemy[i].aniactive == 2)
-									enemy[i].aniactive = 1;
-
-								if (++enemy[i].eshotmultipos[j-1] > weapons[temp3].max)
-									enemy[i].eshotmultipos[j-1] = 1;
-
-								int tempPos = enemy[i].eshotmultipos[j-1] - 1;
-
-								if (j == 1)
-									temp2 = 4;
-
 								enemyShot[b].sx = tempX + weapons[temp3].bx[tempPos] + tempMapXOfs;
 								enemyShot[b].sy = tempY + weapons[temp3].by[tempPos];
-							enemyShot[b].sdmg = weapons[temp3].attack[tempPos];
-							enemyShot[b].tx = weapons[temp3].tx;
-							enemyShot[b].ty = weapons[temp3].ty;
-							enemyShot[b].duration = weapons[temp3].del[tempPos];
+								enemyShot[b].sdmg = weapons[temp3].attack[tempPos];
+								enemyShot[b].tx = weapons[temp3].tx;
+								enemyShot[b].ty = weapons[temp3].ty;
+								enemyShot[b].duration = weapons[temp3].del[tempPos];
 								enemyShot[b].animate = 0;
 								enemyShot[b].animax = weapons[temp3].weapani;
 
@@ -437,44 +543,30 @@ enemy_still_exists:
 
 								if (weapons[temp3].aim > 0)
 								{
-									JE_byte aim = weapons[temp3].aim;
+									enemyShot[b].sxm = aimedVelX;
+									enemyShot[b].sym = aimedVelY;
+								}
 
-									/*DIF*/
-									if (difficultyLevel > DIFFICULTY_NORMAL)
-										aim += difficultyLevel - 2;
-
-									JE_word targetX = player[0].x;
-									JE_word targetY = player[0].y;
-
-									if (twoPlayerMode)
-									{
-										// fire at live player(s)
-										if (player[0].is_alive && !player[1].is_alive)
-											temp = 0;
-										else if (player[1].is_alive && !player[0].is_alive)
-											temp = 1;
-										else
-											temp = mt_rand() % 2;
-
-										if (temp == 1)
-										{
-											targetX = player[1].x - 25;
-											targetY = player[1].y;
-										}
-									}
-
-									JE_integer aimX = (targetX + 25) - tempX - tempMapXOfs - 4;
-									if (aimX == 0)
-										aimX = 1;
-									JE_integer aimY = targetY - tempY;
-									if (aimY == 0)
-										aimY = 1;
-									const JE_integer maxMagAim = MAX(abs(aimX), abs(aimY));
-									enemyShot[b].sxm = roundf((float)aimX / maxMagAim * aim);
-									enemyShot[b].sym = roundf((float)aimY / maxMagAim * aim);
+								/* Applied after the aim override so an aimed shot opens into an
+								   n-way aimed fan rather than staying one beam; that fan is the
+								   danmaku shape worth having.  Rotation cannot collapse the vector
+								   to (0,0): the source magnitude is at least 1, and rotating a unit
+								   vector always leaves some component at 0.5 or above.  At aim == 1
+								   the rounding is coarse enough that wide rings clump. */
+								if (ringStepAngle != 0.0f)
+								{
+									const float ringAngle = ringStepAngle * (float)(ring - (bulletHellRings - 1) / 2);
+									const float cosRing = cosf(ringAngle);
+									const float sinRing = sinf(ringAngle);
+									const JE_integer velX = enemyShot[b].sxm;
+									const JE_integer velY = enemyShot[b].sym;
+									enemyShot[b].sxm = roundf((float)velX * cosRing - (float)velY * sinRing);
+									enemyShot[b].sym = roundf((float)velX * sinRing + (float)velY * cosRing);
 								}
 							}
-							break;
+						}
+						break;
+					}
 						}
 					}
 				}
@@ -1638,8 +1730,8 @@ level_loop:
 											}
 											else
 											{
-												// in galaga mode player 2 is sidekick, so give cash to player 1
-												player[galagaMode ? 0 : playerNum - 1].cash += enemy[temp2].evalue;
+// in galaga mode player 2 is sidekick, so give cash to player 1
+											JE_playerScore(&player[galagaMode ? 0 : playerNum - 1], enemy[temp2].evalue);
 											}
 										}
 
@@ -1723,10 +1815,18 @@ draw_player_shot_loop_end:
 	{    /*MAIN DRAWING IS STOPPED STARTING HERE*/
 
 		/* Draw Enemy Shots */
+		/* regress: --regress-bullet-count telemetry.  `live` counts occupied
+		   slots at the top of the loop, so it includes shots spawned since the
+		   last update that are not yet drawn; `drawn` counts what actually got
+		   blitted, which is what the player sees. */
+		unsigned liveShots = 0;
+		unsigned drawnShots = 0;
+
 		for (int z = 0; z < ENEMY_SHOT_MAX; z++)
 		{
 			if (enemyShotAvail[z] == 0)
 			{
+				liveShots++;
 				enemyShot[z].sxm += enemyShot[z].sxc;
 				enemyShot[z].sx += enemyShot[z].sxm;
 
@@ -1805,16 +1905,19 @@ draw_player_shot_loop_end:
 						}
 
 						drawlist_set_context(DL_OBJ_ENEMY_SHOT, z, 0);
+						drawnShots++;
 
 					if (enemyShot[z].sgr >= 500)
 							blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet12, enemyShot[z].sgr + enemyShot[z].animate - 500);
 						else
 							blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet8, enemyShot[z].sgr + enemyShot[z].animate);
-					}
-				}
-
+}
 			}
+
 		}
+
+		drawlist_note_enemy_shots(liveShots, drawnShots);
+	}
 	}
 
 	if (background3over == 1)
@@ -2484,6 +2587,7 @@ new_game:
 						twoPlayerMode = false;
 
 						player[0].cash = 0;
+						player[0].bullet_hell_bonus = 0;
 
 						player[0].items.ship = 13;                     // The Stalker 21.126
 						player[0].items.weapon[FRONT_WEAPON].id = 39;  // Atomic RailGun
@@ -2602,13 +2706,13 @@ new_game:
 						if (twoPlayerMode)
 						{
 							for (uint i = 0; i < 2; ++i)
-								snprintf(levelWarningText[i], sizeof(*levelWarningText), "%s %lu", miscText[40 + i], player[i].cash);
+								snprintf(levelWarningText[i], sizeof(*levelWarningText), "%s %lu", miscText[40 + i], player[i].cash + player[i].bullet_hell_bonus);
 							strcpy(levelWarningText[2], "");
 							levelWarningLines = 3;
 						}
 						else
 						{
-							sprintf(levelWarningText[0], "%s %lu", miscText[37], JE_totalScore(&player[0]));
+							sprintf(levelWarningText[0], "%s %lu", miscText[37], JE_bulletHellScore(&player[0]));
 							strcpy(levelWarningText[1], "");
 							levelWarningLines = 2;
 						}
@@ -3221,7 +3325,10 @@ void networkStartScreen(void)
 	}
 
 	for (uint i = 0; i < COUNTOF(player); ++i)
+	{
 		player[i].cash = 0;
+		player[i].bullet_hell_bonus = 0;
+	}
 
 	player[0].items.ship = 11;  // Silver Ship
 
@@ -3596,13 +3703,17 @@ bool newGame(void)
 		if (onePlayerAction)
 		{
 			player[0].cash = 0;
+			player[0].bullet_hell_bonus = 0;
 
 			player[0].items.ship = 8;  // Stalker
 		}
 		else if (twoPlayerMode)
 		{
 			for (uint i = 0; i < COUNTOF(player); ++i)
+			{
 				player[i].cash = 0;
+				player[i].bullet_hell_bonus = 0;
+			}
 
 			player[0].items.ship = 11;  // Silver Ship
 
@@ -3614,6 +3725,7 @@ bool newGame(void)
 		else if (richMode)
 		{
 			player[0].cash = 1000000;
+			player[0].bullet_hell_bonus = 0;
 		}
 		else if (gameLoaded)
 		{
@@ -3623,6 +3735,7 @@ bool newGame(void)
 
 			assert(episodeNum >= 1 && episodeNum <= EPISODE_AVAILABLE);
 			player[0].cash = initial_cash[episodeNum - 1];
+			player[0].bullet_hell_bonus = 0;
 		}
 	}
 
@@ -3659,6 +3772,7 @@ bool newSuperArcadeGame(unsigned int i)
 		initialDifficulty = ++difficultyLevel;
 
 		player[0].cash = 0;
+		player[0].bullet_hell_bonus = 0;
 
 		player[0].items.weapon[FRONT_WEAPON].id = SAWeapon[i][0];
 		player[0].items.special = SASpecialWeapon[i];
@@ -3715,6 +3829,7 @@ bool newSuperTyrianGame(void)
 		difficultyLevel = initialDifficulty;
 
 		player[0].cash = 0;
+		player[0].bullet_hell_bonus = 0;
 
 		player[0].items.ship = 13;                     // The Stalker 21.126
 		player[0].items.weapon[FRONT_WEAPON].id = 39;  // Atomic RailGun

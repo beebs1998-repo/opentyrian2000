@@ -44,7 +44,28 @@ enum
 	SA_ARCADE = 255
 };
 
-#define ENEMY_SHOT_MAX  60 /* 60*/
+/* Originally 60.  Raised so dense patterns have room to exist: at 60 the spawn
+   path gave up constantly, and the give-up path aborted the rest of the firing
+   enemy's AI (see tyrian2.c, the volley loop).
+
+   255 is a hard ceiling, not a round number.  drawlist.c identifies a recorded
+   object by (obj_kind, obj_id, obj_sub) and casts the id to a Uint8, so the id
+   is what pairs a bullet with its own position in the previous tick for
+   interpolation.  Slot 256 would wrap to 0 and two different bullets would be
+   matched against each other, producing silently wrong lerped positions
+   rather than a crash.  Keep the guard below if this is ever raised. */
+#define ENEMY_SHOT_MAX  255
+#if ENEMY_SHOT_MAX > 255
+#error "drawlist.c keys interpolation on a Uint8 obj_id; shots beyond 255 would alias across ticks"
+#endif
+
+/* Bullet Hell fan shape: how many echoes each authored volley gets, and the
+   angular step between them.  Three rings at 14 degrees opens a one-shot volley
+   into a roughly 28 degree arc with the authored pattern down the middle, which
+   is wide enough to read as a wall and narrow enough to leave a gap to thread.
+   These are the tuning knobs for the mode. */
+#define BULLET_HELL_RINGS       3
+#define BULLET_HELL_SPREAD_DEG  14.0f
 
 #define CURRENT_KEY_SPEED 5  /*Keyboard/Joystick movement rate*/
 #define CURRENT_KEY_SPEED_DIAGONAL 4  /*Keyboard/Joystick movement rate when moving diagonally*/
@@ -264,6 +285,13 @@ extern JE_byte soundQueue[8];
 
 extern bool small_hitbox_enabled;
 void applySmallHitbox(void);
+
+extern bool bullet_hell_enabled;
+void applyBulletHell(void);
+
+// Score multiplier Bullet Hell contributes at the current difficulty.  1.0 when
+// the mode is off.
+float bullet_hell_score_multiplier(void);
 
 extern bool reverb_enabled;
 void applyReverb(void);

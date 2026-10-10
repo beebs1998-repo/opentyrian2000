@@ -65,6 +65,11 @@ long weapon_upgrade_cost(long base_cost, unsigned int power);
 ulong JE_getCost(JE_byte itemType, JE_word itemNum);
 JE_longint JE_getValue(JE_byte itemType, JE_word itemNum);
 ulong JE_totalScore(const Player *);
+ulong JE_bulletHellScore(const Player *);
+
+// Awards combat score, routing any Bullet Hell surplus into
+// Player::bullet_hell_bonus rather than inflating cash.
+void JE_playerScore(Player *, JE_integer);
 
 void JE_drawPortConfigButtons(void);
 void JE_outCharGlow(JE_word x, JE_word y, const char *s);

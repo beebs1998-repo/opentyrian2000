@@ -22,6 +22,43 @@ forced opaque clouds, which looked like a transparency bug but was the original
 Tyrian behaviour (only Pentium and above had `wild` set). High Detail also now
 keeps the 60 Hz presentation, which it used to disable.
 
+## Bullet Hell mode
+Setup - Gameplay - Bullet Hell (ON/OFF), off by default. Each enemy volley is
+fanned into three rings 14 degrees apart, so an authored one-shot pattern opens
+into a roughly 28 degree arc with the original pattern down the middle, and the
+fire rate is raised as well. Bullet speed is untouched: the mode gets its
+difficulty from density and pattern shape, which is also what makes it readable.
+The setting is stored as `bullet_hell` under `[gameplay]` in `opentyrian.cfg`.
+
+Bullet Hell turns Small Hitbox on, because it is not survivable on the stock
+hitbox. Turning Small Hitbox back off turns Bullet Hell off with it, so the two
+rows can never disagree with what is actually in effect.
+
+Combat score is worth more in this mode: 2x on Easy/Normal, 1.5x from Hard to
+Maniacal, and 1.25x above that. The extra is kept separate from your cash, so
+the shop budget and the galaga life threshold are unaffected, and it does not
+feed the score that raises the difficulty between levels. It shows on the score
+at the end of a level and on the high-score table, not on the in-game counter.
+It is not saved, so reloading from a shop menu drops what you had earned.
+
+The rate it adds shrinks as difficulty rises, so that it does not compound with
+the halvings the game already applies above Normal and Maniacal. Measured
+against stock at a weapon firing every 40 ticks, total bullet density is about
+5.7x on Easy/Normal, 8.6x on Hard through Maniacal, and 10.9x on Zinglon and
+above. Difficulty can also be raised mid-level by level event 46, so the
+density shifts during a battle.
+
+The difficulty menu shows only Easy, Normal and Hard by default. The rest are
+unlocked in the menu itself: hold Shift+G for Impossible, Shift+] for Suicide,
+and type L-O-R-D for Zinglon. Those three are the only way to select the higher
+tiers; Insanity, Maniacal and Nortaneous only ever appear through the
+between-level difficulty rise or a level script.
+
+`--regress-bullet-count` reports enemy bullet density per tick: mean and peak
+shot-pool occupancy, mean and peak drawn shots, and how many volleys were
+truncated because the pool was full. It is the number to check when changing
+the tuning constants in `src/varz.h`.
+
 ## Smooth motion can be turned off
 Setup - Graphics - Smooth Motion. On (the default) presents at the display
 refresh rate by interpolating between logic ticks; off restores the original

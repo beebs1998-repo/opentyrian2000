@@ -938,6 +938,48 @@ ulong JE_totalScore(const Player *this_player)
 	return temp;
 }
 
+// Deliberately excludes bullet_hell_bonus.  This is the value
+// adjust_difficulty() reads to ratchet difficulty, and difficultyLevel is
+// broadcast over the network, so letting the mode's bonus feed it would make
+// a Bullet Hell run ratchet itself upwards faster and -- in a network game --
+// push a different difficulty onto the other peers.  Use
+// JE_bulletHellScore() for anything that is actually reporting a score.
+ulong JE_bulletHellScore(const Player *this_player)
+{
+	return JE_totalScore(this_player) + this_player->bullet_hell_bonus;
+}
+
+// Awards combat score.  cash receives the raw value unchanged and the Bullet
+// Hell surplus goes to bullet_hell_bonus, so cash keeps its stock meaning (shop
+// budget, galaga life threshold, difficulty ratchet) while the mode's reward
+// is still scored.
+//
+// The surplus is computed as "what the whole award would have been worth"
+// minus the raw value, rather than as amount * (multiplier - 1).  The two
+// differ for small awards: at 1.25x a 2-point enemy would contribute 0.5,
+// which truncates to nothing, so every low-value enemy in a Zinglon Bullet
+// Hell run would silently pay no bonus at all.  Rounding the total first keeps
+// the aggregate honest.
+void JE_playerScore(Player *this_player, JE_integer amount)
+{
+	/* cash is credited unconditionally, including for a zero or negative
+	 * evalloc, so this is exactly what `cash += amount` used to do. */
+	this_player->cash += amount;
+
+	/* Only a positive award can carry a surplus.  A negative one would wrap
+	 * when cast to unsigned, and would make a stock edge case that reduces cash
+	 * also inflate the score. */
+	if (amount > 0)
+	{
+		const float multiplier = bullet_hell_score_multiplier();
+		if (multiplier > 1.0f)
+		{
+			const JE_integer total = (JE_integer)roundf((float)amount * multiplier);
+			this_player->bullet_hell_bonus += (ulong)(total - amount);
+		}
+	}
+}
+
 JE_longint JE_getValue(JE_byte itemType, JE_word itemNum)
 {
 	long value = 0;
@@ -2038,7 +2080,7 @@ void JE_highScoreCheck(void)
 		if (timedBattleMode)
 		{
 			// timed battle score is just money
-			temp_score = player[0].cash;
+			temp_score = player[0].cash + player[0].bullet_hell_bonus;
 			table = timeBattleSelection - 1;
 		}
 		else if (twoPlayerMode)
@@ -2048,12 +2090,13 @@ void JE_highScoreCheck(void)
 				p = (temp_p == 0) ? 1 : 0;
 
 			temp_score = (p == 0) ? player[0].cash : player[1].cash;
+			temp_score += (p == 0) ? player[0].bullet_hell_bonus : player[1].bullet_hell_bonus;
 			++table;
 		}
 		else
 		{
 			// single player highscore includes cost of upgrades
-			temp_score = JE_totalScore(&player[0]);
+			temp_score = JE_bulletHellScore(&player[0]);
 		}
 
 		int slot;
@@ -5050,11 +5093,11 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 					{
 						// players get equal share of pick-up cash when linked
 						for (uint i = 0; i < COUNTOF(player); ++i)
-							player[i].cash += evalue / COUNTOF(player);
+							JE_playerScore(&player[i], evalue / COUNTOF(player));
 					}
 					else
 					{
-						this_player->cash += evalue;
+						JE_playerScore(this_player, evalue);
 					}
 					JE_setupExplosion(enemy_screen_x, enemy[z].ey, 0, enemyDat[enemy[z].enemytype].explosiontype, true, false);
 				}

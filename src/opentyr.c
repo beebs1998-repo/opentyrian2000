@@ -110,6 +110,18 @@ static const char *getSmallHitboxPickerItem(size_t i, char *buffer, size_t buffe
 	return i == 0 ? "OFF" : "ON";
 }
 
+static size_t getBulletHellPickerItemsCount(void)
+{
+	return 2;
+}
+
+static const char *getBulletHellPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+
+	return i == 0 ? "OFF" : "ON";
+}
+
 static size_t getSmoothMotionPickerItemsCount(void)
 {
 	return 2;
@@ -243,6 +255,7 @@ void setupMenu(void)
 		MENU_ITEM_SOUND_VOLUME,
 		MENU_ITEM_GAMEPLAY,
 		MENU_ITEM_SMALL_HITBOX,
+		MENU_ITEM_BULLET_HELL,
 		MENU_ITEM_REVERB,
 		MENU_ITEM_STEREO,
 		MENU_ITEM_STEREO_WIDTH,
@@ -314,6 +327,7 @@ void setupMenu(void)
 			.header = "Gameplay",
 			.items = {
 				{ MENU_ITEM_SMALL_HITBOX, "Small Hitbox:", "Make the player ship hitbox much smaller (CAVE-style).", getSmallHitboxPickerItemsCount, getSmallHitboxPickerItem },
+				{ MENU_ITEM_BULLET_HELL, "Bullet Hell:", "Denser, wider enemy bullet patterns (CAVE-style). Forces Small Hitbox.", getBulletHellPickerItemsCount, getBulletHellPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -423,6 +437,10 @@ void setupMenu(void)
 
 			case MENU_ITEM_SMALL_HITBOX:
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, small_hitbox_enabled ? "ON" : "OFF", normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				break;
+
+			case MENU_ITEM_BULLET_HELL:
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, bullet_hell_enabled ? "ON" : "OFF", normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
 				break;
 
 			case MENU_ITEM_MUSIC_VOLUME:
@@ -573,6 +591,7 @@ void setupMenu(void)
 									case MENU_ITEM_SCALER:
 									case MENU_ITEM_SCALING_MODE:
 									case MENU_ITEM_SMALL_HITBOX:
+									case MENU_ITEM_BULLET_HELL:
 									case MENU_ITEM_REVERB:
 									{
 										action = true;
@@ -822,6 +841,14 @@ void setupMenu(void)
 					pickerSelectedIndex = small_hitbox_enabled ? 1 : 0;
 					break;
 				}
+				case MENU_ITEM_BULLET_HELL:
+				{
+					JE_playSampleNum(S_CLICK);
+
+					currentPicker = selectedMenuItemId;
+					pickerSelectedIndex = bullet_hell_enabled ? 1 : 0;
+					break;
+				}
 				case MENU_ITEM_REVERB:
 				{
 					JE_playSampleNum(S_CLICK);
@@ -1016,7 +1043,18 @@ void setupMenu(void)
 				case MENU_ITEM_SMALL_HITBOX:
 				{
 					small_hitbox_enabled = (pickerSelectedIndex == 1);
+					/* Bullet Hell is not survivable on the stock hitbox, so the two
+					   options are mutually exclusive in the direction that Bullet
+					   Hell wins; see applyBulletHell(). */
+					if (!small_hitbox_enabled)
+						bullet_hell_enabled = false;
 					applySmallHitbox();
+					break;
+				}
+				case MENU_ITEM_BULLET_HELL:
+				{
+					bullet_hell_enabled = (pickerSelectedIndex == 1);
+					applyBulletHell();
 					break;
 				}
 				case MENU_ITEM_REVERB:

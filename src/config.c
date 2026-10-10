@@ -216,6 +216,7 @@ bool load_opentyrian_config(void)
 	set_scaler_by_name("Scale2x");
 	interp_smooth_motion = true;
 	small_hitbox_enabled = false;
+	bullet_hell_enabled = false;
 	reverb_enabled = false;
 	stereo_enabled = false;
 	surround_enabled = false;
@@ -257,11 +258,14 @@ bool load_opentyrian_config(void)
 	section = config_find_section(config, "gameplay", NULL);
 	if (section != NULL)
 	{
-		const char *small_hitbox;
-		if (config_get_string_option(section, "small_hitbox", &small_hitbox))
-		{
-			small_hitbox_enabled = (strcmp(small_hitbox, "on") == 0 || strcmp(small_hitbox, "ON") == 0 || strcmp(small_hitbox, "On") == 0);
-		}
+		config_get_bool_option(section, "small_hitbox", &small_hitbox_enabled);
+		config_get_bool_option(section, "bullet_hell", &bullet_hell_enabled);
+
+		// Bullet Hell requires the small hitbox, so it forces it on; see
+		// applyBulletHell().  Reconciled on load too, so a hand-edited file
+		// cannot leave the two flags inconsistent.
+		if (bullet_hell_enabled)
+			small_hitbox_enabled = true;
 	}
 
 	section = config_find_section(config, "audio", NULL);
@@ -351,7 +355,8 @@ bool save_opentyrian_config(void)
 	if (section == NULL)
 		exit(EXIT_FAILURE);  // out of memory
 
-	config_set_string_option(section, "small_hitbox", small_hitbox_enabled ? "on" : "off");
+	config_set_bool_option(section, "small_hitbox", small_hitbox_enabled, OFF_ON);
+	config_set_bool_option(section, "bullet_hell", bullet_hell_enabled, OFF_ON);
 
 	section = config_find_or_add_section(config, "audio", NULL);
 	if (section == NULL)
@@ -538,7 +543,9 @@ void JE_loadGame(JE_byte slot)
 	}
 	
 	player[0].cash = saveFiles[slot-1].score;
+	player[0].bullet_hell_bonus = 0;
 	player[1].cash = saveFiles[slot-1].score2;
+	player[1].bullet_hell_bonus = 0;
 	
 	mainLevel   = saveFiles[slot-1].level;
 	cubeMax     = saveFiles[slot-1].cubes;

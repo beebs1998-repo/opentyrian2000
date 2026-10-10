@@ -201,6 +201,7 @@ JE_longint galagaLife;
 JE_boolean debug = false; /*Debug Mode*/
 
 bool small_hitbox_enabled = false;
+bool bullet_hell_enabled = false;
 bool reverb_enabled = false;
 bool stereo_enabled = false;
 bool surround_enabled = false;
@@ -422,6 +423,41 @@ void applySmallHitbox(void)
 			player[i].shot_hit_area_y = 14;
 		}
 	}
+}
+
+void applyBulletHell(void)
+{
+	/* Bullet Hell is not survivable on the stock hitbox, so the two options
+	 * cannot both be honoured: Bullet Hell wins.  Turning Small Hitbox off
+	 * therefore has to turn Bullet Hell off, which the Setup menu does
+	 * alongside this call, so that the displayed state of both rows always
+	 * matches what is actually in effect. */
+	if (bullet_hell_enabled)
+	{
+		small_hitbox_enabled = true;
+		applySmallHitbox();
+	}
+}
+
+float bullet_hell_score_multiplier(void)
+{
+	/* Bands deliberately match the fire-rate bands in tyrian2.c, so the mode
+	 * pays for what it actually costs: where Bullet Hell also doubles the fire
+	 * rate it pays double, where it only adds half again it pays half again,
+	 * and above Maniacal it adds no rate at all.  The top band is not zero
+	 * because the three-ring widening applies at every difficulty, so a
+	 * Zinglon Bullet Hell run is still denser than a stock one even though its
+	 * fire rate is identical.
+
+	 * Returns 1.0 when the mode is off, so callers need no separate check. */
+	if (!bullet_hell_enabled)
+		return 1.0f;
+
+	if (difficultyLevel <= DIFFICULTY_NORMAL)
+		return 2.00f;
+	if (difficultyLevel <= DIFFICULTY_MANIACAL)
+		return 1.50f;
+	return 1.25f;
 }
 
 void applyReverb(void)
